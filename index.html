@@ -37,6 +37,14 @@
   --shadow:0 6px 22px rgba(0,0,0,.5);
   color-scheme:dark;
 }}
+/* habillages d'interface (au choix) ; le mode nuit passe par-dessus */
+:root[data-skin="france"]{--bg:#FAF6EE;--surface:#FFFDF8;--ink:#14213D;--muted:#5B5F6B;--line:#E2DACB;--accent:#1F3A93;--route:#1F3A93;--cue-wait:#1F3A93;--ground:#F1E7D0;--road:#FFF8E8;--road-edge:#C9B48A;--minor:#F6EEDC}
+:root[data-skin="france"] .brand h1 span{color:#E1000F}
+:root[data-skin="france"] .cue::before,:root[data-skin="france"] .sheet::before{content:"";position:absolute;left:0;right:0;top:0;height:5px;background:linear-gradient(90deg,#1F3A93 0 33.3%,#FFFFFF 33.3% 66.6%,#E1000F 66.6%);z-index:2}
+:root[data-skin="scandinave"]{--bg:#1B1D1F;--surface:#232527;--ink:#E9E7E2;--muted:#9A9893;--line:#3A3E42;--accent:#FF7500;--go:#E9E7E2;--go-strong:#FF7500;--cue-go:#2E3236;--on-cue:#E9E7E2;--ground:#1E2A35;--road:#3E5263;--road-edge:#121A21;--minor:#2C3C4A;--travel:#556677;color-scheme:dark}
+:root[data-skin="scandinave"] .cue,:root[data-skin="scandinave"] .sheet,:root[data-skin="scandinave"] .btn,:root[data-skin="scandinave"] .round,:root[data-skin="scandinave"] .kitty,:root[data-skin="scandinave"] .spdc,:root[data-skin="scandinave"] .search,:root[data-skin="scandinave"] .menub,:root[data-skin="scandinave"] .toast{border-radius:4px}
+:root[data-skin="colore"]{--bg:#FFF4DE;--surface:#FFFFFF;--ink:#2B2140;--muted:#5A4E70;--line:#2B2140;--accent:#6C5CE7;--go-strong:#1FB5A3;--go:#1FB5A3;--ground:#DDF3E4}
+:root[data-skin="colore"] .cue,:root[data-skin="colore"] .sheet,:root[data-skin="colore"] .btn,:root[data-skin="colore"] .round,:root[data-skin="colore"] .kitty,:root[data-skin="colore"] .spdc,:root[data-skin="colore"] .search,:root[data-skin="colore"] .menub{border:3px solid #2B2140;box-shadow:0 4px 0 #2B2140}
 /* mode nuit (automatique au coucher du soleil, ou forcé dans le menu) */
 :root[data-theme="dark"]{
   --bg:#0E1312; --surface:#161C1B; --ink:#E5ECE8; --muted:#93A09A; --line:#2A3331; --accent:#62B4D0; --route:#4BA9E8;
@@ -1099,6 +1107,11 @@ readTheme(); try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('c
 const NIGHT={mode:'auto',dark:null};
 try{ const m=localStorage.getItem('pl-night'); if(['auto','on','off'].includes(m)) NIGHT.mode=m; }catch(e){}
 // hauteur du soleil (degrés) à une position et une heure données
+const SKINS={classique:'Classique',france:'France',scandinave:'Scandinave',colore:'Coloré'};
+let SKIN='classique'; try{ const k=localStorage.getItem('pl-skin'); if(SKINS[k]) SKIN=k; }catch(e){}
+function setSkin(k){ SKIN=SKINS[k]?k:'classique'; try{ localStorage.setItem('pl-skin',SKIN); }catch(e){}
+  if(SKIN==='classique') delete document.documentElement.dataset.skin; else document.documentElement.dataset.skin=SKIN; readTheme(); }
+setSkin(SKIN);
 function sunAlt(lat,lon,date){ const r=Math.PI/180, d=(date.getTime()-Date.UTC(2000,0,1,12))/864e5;
   const L=(280.46+0.9856474*d)%360, gm=(357.528+0.9856003*d)%360, lam=(L+1.915*Math.sin(gm*r)+0.02*Math.sin(2*gm*r))*r, eps=(23.439-4e-7*d)*r;
   const dec=Math.asin(Math.sin(eps)*Math.sin(lam)), ra=Math.atan2(Math.cos(eps)*Math.sin(lam),Math.cos(lam));
@@ -1115,17 +1128,27 @@ $('bNight').onclick=()=>{ NIGHT.mode={auto:'on',on:'off',off:'auto'}[NIGHT.mode]
 setInterval(()=>{ if(S.ref){ try{ localStorage.setItem('pl-lastpos',JSON.stringify([S.ref.lat,S.ref.lon])); }catch(e){} } nightApply(); },60000);
 // Carte de nuit : on assombrit le fond, l'eau, la végétation et les routes ; les couleurs de jour sont gardées pour revenir
 const MAP_DAY=new Map();
-function mapTheme(dark){ if(!GL||!MAP) return;
-  const set=(id,prop,val)=>{ try{ const k=id+'|'+prop; if(!MAP_DAY.has(k)) MAP_DAY.set(k,MAP.getPaintProperty(id,prop)); MAP.setPaintProperty(id,prop,dark?val:MAP_DAY.get(k)); }catch(e){} };
+// Palettes de carte : la nuit, et les styles au choix (null = couleurs d'origine)
+const MAP_PALS={
+  nuit:{bg:'#111716',water:'#0E2230',park:'#14211A',fill:'#161D1C',road:'#3B4745',casing:'#0A0E0D',other:'#2A3331',text:'#C9D3CF',halo:'#0E1312'},
+  epure:{bg:'#F4F4F2',water:'#DCE3E8',park:'#E7EDE4',fill:'#EFEFEC',road:'#FFFFFF',casing:'#D6D6D1',other:'#E3E3DF',text:'#6B6B66',halo:'#FFFFFF'},
+  vintage:{bg:'#F1E7D0',water:'#B9D2CF',park:'#D8DDB5',fill:'#EADFC4',road:'#FFF8E8',casing:'#C9B48A',other:'#DCCFAF',text:'#5B4A2E',halo:'#F1E7D0'},
+  fjord:{bg:'#1E2A35',water:'#16212B',park:'#22323A',fill:'#243240',road:'#3E5263',casing:'#121A21',other:'#2C3C4A',text:'#B9C7D3',halo:'#1E2A35'}};
+let MAP_CHOICE='classique'; try{ const m=localStorage.getItem('pl-map'); if(m) MAP_CHOICE=m; }catch(e){}
+function mapTheme(dark){ mapPaint(dark?MAP_PALS.nuit:(MAP_PALS[MAP_CHOICE]||null)); }
+function mapPaint(P){ if(!GL||!MAP) return;
+  const set=(id,prop,val)=>{ try{ const k=id+'|'+prop; if(!MAP_DAY.has(k)) MAP_DAY.set(k,MAP.getPaintProperty(id,prop)); MAP.setPaintProperty(id,prop,P?val:MAP_DAY.get(k)); }catch(e){} };
+  const p=P||{};
   for(const l of MAP.getStyle().layers||[]){ const id=l.id;
-    if(l.type==='background') set(id,'background-color','#111716');
-    else if(l.type==='fill') set(id,'fill-color',/water/i.test(id)?'#0E2230':/park|wood|grass|landcover|forest|green/i.test(id)?'#14211A':'#161D1C');
+    if(l.type==='background') set(id,'background-color',p.bg);
+    else if(l.type==='fill') set(id,'fill-color',/water/i.test(id)?p.water:/park|wood|grass|landcover|forest|green/i.test(id)?p.park:p.fill);
     else if(l.type==='line'&&!['route','route-case','ahead'].includes(id)){
-      if(/water|river|stream/i.test(id)) set(id,'line-color','#0E2230');
-      else if(/casing|case/i.test(id)) set(id,'line-color','#0A0E0D');
-      else if(/road|street|highway|motorway|trunk|primary|secondary|tertiary|minor|service|track|path|bridge|tunnel/i.test(id)) set(id,'line-color','#3B4745');
-      else set(id,'line-color','#2A3331'); }
-    else if(l.type==='symbol'){ set(id,'text-color','#C9D3CF'); set(id,'text-halo-color','#0E1312'); } } }
+      if(/water|river|stream/i.test(id)) set(id,'line-color',p.water);
+      else if(/casing|case/i.test(id)) set(id,'line-color',p.casing);
+      else if(/road|street|highway|motorway|trunk|primary|secondary|tertiary|minor|service|track|path|bridge|tunnel/i.test(id)) set(id,'line-color',p.road);
+      else set(id,'line-color',p.other); }
+    else if(l.type==='symbol'){ set(id,'text-color',p.text); set(id,'text-halo-color',p.halo); } } }
+function setMapStyle(k){ MAP_CHOICE=MAP_PALS[k]?k:'classique'; try{ localStorage.setItem('pl-map',MAP_CHOICE); }catch(e){} mapTheme(!!NIGHT.dark); }
 function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 function draw(g,adv,dtR){
   const W=cv.clientWidth,H=cv.clientHeight; if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){ cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); }
@@ -1200,8 +1223,19 @@ function carEl(){ return el('mk-car','<svg viewBox="0 0 46 46" width="46" height
   +'<path d="M18.4 31.4Q23 32.4 27.6 31.4L28.6 35.2Q23 36.6 17.4 35.2Z" fill="#D5EAF3" opacity=".85"/>'
   +'<circle cx="17.6" cy="8.6" r="1.4" fill="#FFE7A3"/><circle cx="28.4" cy="8.6" r="1.4" fill="#FFE7A3"/></svg>'); }
 // Voiture en 3D (blocs CSS) pour la conduite : l'avant vers le haut, vue inclinée comme la carte
+// Véhicules au choix : couleur de carrosserie et proportions (blocs 3D)
+const VEHS={
+  citadine:{n:'Citadine',c:'#2A7896',w:20,l:38,h:8,cy:12,cl:17,ch:7},
+  sport:{n:'Sportive',c:'#D62828',w:20,l:40,h:6,cy:15,cl:13,ch:5},
+  suv:{n:'SUV',c:'#E4E6E1',w:22,l:42,h:11,cy:8,cl:24,ch:8},
+  utilitaire:{n:'Utilitaire',c:'#F2C14E',w:22,l:46,h:10,cy:1,cl:11,ch:8,cargo:true},
+  deuche:{n:'Deux-chevaux',c:'#8FA79A',w:19,l:36,h:8,cy:8,cl:22,ch:10}};
+let VEH_ID='citadine'; try{ const v=localStorage.getItem('pl-vehicle'); if(VEHS[v]) VEH_ID=v; }catch(e){}
+const shade=(hex,f)=>{ const n=parseInt(hex.slice(1),16), c=[n>>16,n>>8&255,n&255].map(x=>Math.round(Math.min(255,Math.max(0,f<1?x*f:x+(255-x)*(f-1))))); return '#'+c.map(x=>x.toString(16).padStart(2,'0')).join(''); };
+// Voiture en 3D (blocs CSS) pour la conduite : l'avant vers le haut, vue inclinée comme la carte
 function car3dEl(){
-  const w=el('car3d-wrap'), c=el('car3d'); w.append(c);
+  const V=VEHS[VEH_ID]||VEHS.citadine, w=el('car3d-wrap'), c=el('car3d'); w.append(c);
+  c.style.width=V.w+'px'; c.style.height=V.l+'px';
   const face=(W,H,tf,bg)=>{ const f=document.createElement('i'); f.style.cssText=`width:${W}px;height:${H}px;background:${bg};transform:${tf}`; c.append(f); };
   // bloc : x,y = coin avant gauche au sol ; w largeur, l longueur, h hauteur, z0 hauteur de départ
   const box=(x,y,z0,W,L,H,col)=>{ const k=typeof col==='string'?{top:col,front:col,back:col,side:col}:col;
@@ -1211,13 +1245,17 @@ function car3dEl(){
     face(L,H,`translate3d(${x}px,${y}px,${z0}px) rotateZ(90deg) rotateX(90deg)`,k.side);
     face(L,H,`translate3d(${x+W}px,${y}px,${z0}px) rotateZ(90deg) rotateX(90deg)`,k.side); };
   for(const k of ['halo','shadow']){ const d=document.createElement('i'); d.className=k; c.append(d); }
-  for(const [x,y] of [[-1.5,6],[18.5,6],[-1.5,25],[18.5,25]]) box(x,y,0,3,8,6,'#15191C');
-  box(0,0,2,20,38,8,{top:'#2A7896',front:'#1F6680',back:'#164B5F',side:'#1B5D75'});
-  box(2,12,10,16,17,7,{top:'#1C5A72',front:'#CBE5F0',back:'#A6CEDF',side:'#93BDD1'});
-  box(2.5,-0.4,6,4.5,0.4,2.6,'#FFE7A3'); box(13,-0.4,6,4.5,0.4,2.6,'#FFE7A3');
-  box(2,38,6.5,5,0.4,2.2,'#E0473C'); box(13,38,6.5,5,0.4,2.2,'#E0473C');
+  const body={top:V.c,front:shade(V.c,.85),back:shade(V.c,.62),side:shade(V.c,.75)};
+  for(const [x,y] of [[-1.5,6],[V.w-1.5,6],[-1.5,V.l-13],[V.w-1.5,V.l-13]]) box(x,y,0,3,8,6,'#15191C');
+  box(0,0,2,V.w,V.l,V.h,body);
+  if(V.cargo) box(0,V.cy+V.cl,2+V.h,V.w,V.l-V.cy-V.cl,8,{top:shade(V.c,1.15),front:shade(V.c,.9),back:shade(V.c,.62),side:shade(V.c,.8)});
+  box(2,V.cy,2+V.h,V.w-4,V.cl,V.ch,{top:shade(V.c,.8),front:'#CBE5F0',back:'#A6CEDF',side:'#93BDD1'});
+  box(2.5,-0.4,V.h-2,4.5,0.4,2.6,'#FFE7A3'); box(V.w-7,-0.4,V.h-2,4.5,0.4,2.6,'#FFE7A3');
+  box(2,V.l,V.h-1.5,5,0.4,2.2,'#E0473C'); box(V.w-7,V.l,V.h-1.5,5,0.4,2.2,'#E0473C');
   w._car=c; return w;
 }
+function setVehicle(k){ VEH_ID=VEHS[k]?k:'citadine'; try{ localStorage.setItem('pl-vehicle',VEH_ID); }catch(e){}
+  if(carMk){ const old=carMk.el, nw=car3dEl(); nw.style.cssText=old.style.cssText; old.replaceWith(nw); carMk.el=nw; carMk.remove=()=>nw.remove(); } }
 function initMap(){
   if(!window.maplibregl) return;
   try{
@@ -1231,7 +1269,7 @@ function initMap(){
       MAP.addLayer({id:'route',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#2A8FD6','line-width':['interpolate',['linear'],['zoom'],10,3.5,17,13]}});
       MAP.addSource('ahead',{type:'geojson',data:EMPTY});
       MAP.addLayer({id:'ahead',type:'line',source:'ahead',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],13,5,18,16],'line-color':['match',['get','c'],1,'#E58A10',2,'#D3433A','#24965C']}});
-      GL=true; $('cv').hidden=true; if(NIGHT.dark) mapTheme(true);
+      GL=true; $('cv').hidden=true; mapTheme(!!NIGHT.dark);
       if(S.running) glDrive(); else glHome();
     });
   }catch(e){ MAP=null; GL=false; }
@@ -1635,7 +1673,7 @@ $('bInstall').onclick=async()=>{ if(!installEvt) return; installEvt.prompt(); tr
 addEventListener('appinstalled',()=>{ $('installBox').hidden=true; $('installHint').hidden=true; });
 if(!NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 // Page « Labo » (labo.html) : l'appli tourne dans un cadre et la page pilote la simulation et imite la bulle
-if(/[?&]labo\b/.test(location.search)) window.PL_LABO={start,end,SIM,get S(){ return S; },get bubble(){ return BUB.info; },get voice(){ return voiceOn; },setVoice};
+if(/[?&]labo\b/.test(location.search)) window.PL_LABO={start,end,SIM,setVehicle,setMapStyle,setSkin,VEHS,SKINS,MAP_PALS,setNight(m){ NIGHT.mode=m; try{ localStorage.setItem('pl-night',m); }catch(e){} nightApply(); },get choice(){ return {veh:VEH_ID,map:MAP_CHOICE,skin:SKIN,night:NIGHT.mode}; },get S(){ return S; },get bubble(){ return BUB.info; },get voice(){ return voiceOn; },setVoice};
 })();
 </script>
 </body>
