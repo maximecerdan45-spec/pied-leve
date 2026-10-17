@@ -101,6 +101,12 @@ details.safe strong{color:var(--brake)}
 .cue .t{font-family:var(--f-display);font-weight:700;font-size:32px;line-height:1.02;text-wrap:balance}
 .cue .s{font-size:16px;opacity:.94;margin-top:4px;font-variant-numeric:tabular-nums}
 .cue .pb{position:absolute;left:0;bottom:0;height:7px;background:var(--lift);width:0}
+/* approche : tout le bandeau se remplit d'orange, de plus en plus franc, jusqu'au moment de lever le pied */
+.cue>svg,.cue>div:not(.pb){position:relative;z-index:1}
+.cue.prep .pb{top:0;height:auto;opacity:.4;box-shadow:inset -5px 0 0 var(--cue-lift);transition:width .3s linear,opacity .3s}
+.cue.prep.near .pb{opacity:1}
+.cue.prep.near svg{color:var(--ink)}
+.cue.prep .t{font-size:30px}
 .cue.go{background:var(--cue-go);color:var(--on-cue)}
 .cue.lift{background:var(--cue-lift);color:var(--on-cue)}
 .cue.brake{background:var(--cue-brake);color:var(--on-cue)}
@@ -913,7 +919,7 @@ function setCue(cls,ico,t,s,p){
   if($('ico').dataset.k!==ico){ $('ico').innerHTML=ICONS[ico]; $('ico').dataset.k=ico; }
   if($('cT').textContent!==t) $('cT').textContent=t;
   if($('cS').textContent!==s) $('cS').textContent=s;
-  $('cP').style.width=clamp(p||0,0,1)*100+'%';
+  $('cP').style.width=clamp(p||0,0,1)*100+'%'; el.classList.toggle('near',cls==='prep'&&p>0.75);
 }
 /* ===== Bulle flottante (appli Android, par-dessus Waze) ===== */
 const BUB={on:false,last:'',info:{color:'#5A6560',line1:'PIED LEVÉ',line2:''}};
@@ -927,7 +933,7 @@ function bubbleInfo(g){
     case 'stopzone': return e&&e.type==='arrivee'?{color:'#A85E05',icon:'stop',line1:'ARRIVÉE',line2:fmtD(Math.max(0,g.dn))}:{color:'#B3332B',icon:'stop',line1:'STOP',line2:fmtD(Math.max(0,g.dn))};
     case 'brake': return {color:'#B3332B',icon:'brake',line1:'FREINEZ',line2:fmtD(g.dn)};
     case 'lift': return {color:'#A85E05',icon:'lift',line1:'LEVEZ LE PIED',line2:fmtD(g.dn)};
-    case 'prep': return {color:'#1C5A72',icon:'prep',line1:'LEVEZ DANS',line2:fmtD(g.liftAt)};
+    case 'prep': return {color:'#1C5A72',icon:'prep',line1:'LEVEZ DANS',line2:fmtD(g.liftAt),progress:Math.round(clamp(1-g.liftAt/350,0,1)*20)/20}; // la bulle se remplit d'orange
     default: return {color:'#1E7A4C',icon:'go',line1:'ROULEZ',line2:kmh};
   }
 }
