@@ -239,7 +239,33 @@ details.more summary{cursor:pointer;color:var(--accent);font-weight:600;font-siz
 details.more summary::-webkit-details-marker{display:none}
 details.more[open]>*:not(summary){margin-bottom:12px}
 details.more p{font-size:14px}
-@media (prefers-reduced-motion:reduce){.cue.pulse{animation:none}}
+/* ---- côté fun : bravo en direct, note, euros, badges ---- */
+.toast{position:absolute;left:50%;bottom:calc(var(--sa-bottom) + 132px);transform:translateX(-50%);background:var(--go-strong);color:#fff;border-radius:999px;padding:10px 18px;display:flex;gap:10px;align-items:baseline;box-shadow:var(--shadow);font:700 20px var(--f-display);white-space:nowrap;animation:toastIn .25s ease-out}
+.toast span{font-size:22px}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,-8px) scale(.9)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+.goal{display:flex;flex-direction:column;gap:6px}
+.goal .gt{display:flex;justify-content:space-between;gap:10px;font-size:14px;color:var(--muted)}
+.goal .gt b{color:var(--ink);font-weight:600}
+.goal .bar{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.goal .bar i{display:block;height:100%;width:0;background:var(--go);border-radius:4px}
+.score{background:var(--surface);border-radius:24px;padding:20px 16px;display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center}
+.score .stars{display:flex;gap:6px;color:var(--lift)}
+.score .stars svg{width:38px;height:38px}
+.score .stars svg.off{color:var(--line)}
+.score .n{font:700 44px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.score .n small{font-size:20px;color:var(--muted)}
+.score .ph{font:600 19px var(--f-display);color:var(--ink)}
+.hero .k2{font-size:15px;color:var(--muted)}
+.newb{display:flex;flex-direction:column;gap:8px}
+.badge{display:flex;align-items:center;gap:12px;background:var(--surface);border-radius:16px;padding:12px 14px}
+.badge .bi{width:44px;height:44px;border-radius:50%;background:var(--lift);color:#17201C;display:grid;place-items:center;flex:none}
+.badge .bi svg{width:24px;height:24px}
+.badge b{display:block;font:700 18px var(--f-display)}
+.badge small{display:block;font-size:13px;color:var(--muted)}
+.badge.off{opacity:.45}
+.badge.off .bi{background:var(--line);color:var(--muted)}
+.bgrid{display:flex;flex-direction:column;gap:8px}
+@media (prefers-reduced-motion:reduce){.cue.pulse{animation:none}.toast{animation:none}}
 </style>
 </head>
 <body>
@@ -263,6 +289,7 @@ details.more p{font-size:14px}
   <div class="sheet">
     <div class="brand"><h1>Pied <span>Levé</span></h1><small id="homeSaved" hidden></small></div>
     <div id="destInfo" class="dinfo" hidden></div>
+    <div class="goal" id="homeGoal" hidden><div class="gt"><span id="goalTxt"></span><b id="goalAmt"></b></div><div class="bar"><i id="goalBar"></i></div></div>
     <button class="btn go big" id="bReal">Rouler</button>
     <button class="hline" id="setupBox" type="button" hidden><svg id="setupIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L19 7"/></svg><span id="setupTxt">Préparer le téléphone</span></button>
     <div class="install" id="installBox" hidden><span>Installer Pied Levé sur l’écran d’accueil</span><button class="tbtn" id="bInstall">Installer</button></div>
@@ -277,6 +304,10 @@ details.more p{font-size:14px}
     <div class="mgroup">
       <button class="mrow" id="bSetup" type="button" hidden><span><b>Démarrer avec Waze</b><small id="mWaze"></small></span></button>
       <button class="mrow" id="bSound" type="button" role="switch" aria-checked="true"><span><b>Voix</b></span><i class="sw" aria-hidden="true"></i></button>
+      <button class="mrow" id="bVoiceStyle" type="button"><span><b>Style de voix</b><small id="mVoiceStyle">Sobre</small></span></button>
+    </div>
+    <div class="mgroup">
+      <button class="mrow" id="bBadges" type="button"><span><b>Mes badges</b><small id="mBadges"></small></span></button>
     </div>
     <div class="mgroup">
       <button class="mrow" id="bSim" type="button"><span><b>Essayer en simulation</b></span></button>
@@ -304,6 +335,7 @@ details.more p{font-size:14px}
     <div><div class="t" id="cT">Prêt</div><div class="s" id="cS">En attente du démarrage</div></div>
     <div class="pb" id="cP"></div>
   </div>
+  <div class="toast" id="toast" role="status" hidden><b>Bien joué !</b><span id="toastAmt"></span></div>
   <div class="status">
     <span class="chip" id="cGps">GPS : –</span>
     <span class="chip" id="cMap">Carte : –</span>
@@ -331,19 +363,33 @@ details.more p{font-size:14px}
     <button class="btn ghost" id="bSetupDone">C’est prêt</button>
   </div>
 </div>
+<div class="ov" id="ovBadges" hidden>
+  <div class="in">
+    <div class="mhead"><button class="back" id="bBadgesBack" type="button" aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button><h1>Mes badges</h1></div>
+    <p id="bdSum"></p>
+    <div class="bgrid" id="bdList"></div>
+  </div>
+</div>
 <div class="ov" id="ovEnd" hidden>
   <div class="in">
     <p class="esub" id="eSub">Trajet terminé</p>
+    <div class="score" id="eScore">
+      <div class="stars" id="eStars"></div>
+      <div class="n" id="eNote">–</div>
+      <div class="ph" id="ePhrase"></div>
+    </div>
     <div class="hero">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21c0-9 5-15 15-16-1 10-7 15-15 16z"/><path d="M5 21l8-8"/></svg>
       <div class="v" id="eSaved">–</div>
       <div class="k">économisés sur ce trajet</div>
+      <div class="k2" id="eLit"></div>
     </div>
     <div class="follow">
       <div class="fr"><span>Conseils suivis</span><span id="eFolN">–</span></div>
       <div class="bar"><i id="eFolBar"></i></div>
       <p id="eMsg"></p>
     </div>
+    <div class="newb" id="eBadges" hidden></div>
     <details class="more">
       <summary>Voir le détail</summary>
       <div class="stats">
@@ -774,7 +820,8 @@ function onFixCore(p){
     fetchMap(fx,fy);
   }
   // suivi des conseils
-  S.pend=S.pend.filter(q=>{ if(now-q.t<5000) return true; const ok=!q.hard&&(q.v-v)>0.8; if(ok) S.log.fol++; logLine(`  → conseil ${ok?'suivi':'non suivi'} (${Math.round(q.v*KMH)} → ${Math.round(v*KMH)} km/h en 5 s)`); return false; });
+  // conseil suivi si la vitesse a baissé dans les 5 s (5 s de simulation en mode accéléré), sans freinage fort
+  S.pend=S.pend.filter(q=>{ q.vMin=Math.min(q.vMin??q.v,v); if(now-q.t<(S.mode==='sim'?5000/(SIM.mult||1):5000)) return true; const ok=!q.hard&&(q.v-q.vMin)>0.8; if(ok){ S.log.fol++; cheer(q); } logLine(`  → conseil ${ok?'suivi':'non suivi'} (${Math.round(q.v*KMH)} → ${Math.round(q.vMin*KMH)} km/h en 5 s)`); return false; });
   // recalage + trajet
   if(!S.ways.size){ S.match=null; S.path=null; return; }
   let m=match(xy[0],xy[1],hd??S.hd);
@@ -784,13 +831,13 @@ function onFixCore(p){
   if(S.route){ const rn=routeNear(xy[0],xy[1]); S.onRoute=rn.d<45;
     if(S.onRoute){ S.route.s=rn.s; S.offCnt=0; } else if(++S.offCnt>=4&&!S.arrived&&now-(S.lastRer||0)>30000){ const ll=toLL(xy[0],xy[1]); reroute(ll[0],ll[1]); }
     const rem=Math.max(0,S.route.len-S.route.s);
-    if(rem<40&&!S.arrived){ S.arrived=true; logLine('Arrivée à destination'); beep(660,2); say('Vous êtes arrivé.'); }
+    if(rem<40&&!S.arrived){ S.arrived=true; logLine('Arrivée à destination'); beep(660,2); say(voiceTxt('arrive')); }
     const left=S.route.duration*rem/S.route.len; $('hEtaT').textContent=S.arrived?'Arrivé':hm(Date.now()+left*1000); $('hEtaI').textContent=S.arrived?'à destination':`${Math.max(1,Math.round(left/60))} min · ${nf(rem/1000,1)} km`; }
   const P=buildPath(m,S.mode==='sim');
   for(const e of P.ev){ const q=pointAt(P.pts,e.d); e.wx=q[0]; e.wy=q[1];
     const old=S.ev.find(o=>o.type===e.type&&o.wx!=null&&Math.hypot(o.wx-e.wx,o.wy-e.wy)<35); if(old) e.key=old.key; }
   // obstacles passés
-  { for(const e of S.ev){ if(S.passed[e.key]) continue; if(!P.ev.some(f=>f.key===e.key)&&e.d<80){ S.passed[e.key]=1; if(e.vt>0||e.type==='stop'){ S.log.passes.push({label:e.label,vt:e.vt,v:Math.round(S.minNear?.[e.key]??v*KMH)}); logLine(`Passé : ${e.label} à ${Math.round(S.minNear?.[e.key]??v*KMH)} km/h (cible ${e.vt})`); } } } }
+  { for(const e of S.ev){ if(S.passed[e.key]) continue; if(!P.ev.some(f=>f.key===e.key)&&e.d<80){ S.passed[e.key]=1; if(e.vt>0||e.type==='stop'){ S.log.passes.push({label:e.label,type:e.type,vt:e.vt,v:Math.round(S.minNear?.[e.key]??v*KMH)}); logLine(`Passé : ${e.label} à ${Math.round(S.minNear?.[e.key]??v*KMH)} km/h (cible ${e.vt})`); } } } }
   S.path=P; S.ev=P.ev;
   S.minNear=S.minNear||{};
   for(const e of P.ev){ if(e.d<40){ const k=Math.round(v*KMH); S.minNear[e.key]=Math.min(S.minNear[e.key]??999,k); } }
@@ -874,6 +921,7 @@ function bubbleInfo(g){
   // couleurs foncées (texte blanc lisible) et pictogramme identiques au bandeau de l'appli
   const kmh=Math.round((S.vS??S.v)*KMH)+' km/h';
   if(!S.xy||!S.ways.size||!S.path||!g) return {color:'#3A4440',icon:'wait',line1:'PIED LEVÉ',line2:S.xy?kmh:''};
+  if(S.cheer&&performance.now()<S.cheer.until&&g.lvl!=='brake'&&g.lvl!=='stopzone') return {color:'#1E7A4C',icon:'go',line1:'BIEN JOUÉ !',line2:S.cheer.txt};
   const e=g.e;
   switch(g.lvl){
     case 'stopzone': return e&&e.type==='arrivee'?{color:'#A85E05',icon:'stop',line1:'ARRIVÉE',line2:fmtD(Math.max(0,g.dn))}:{color:'#B3332B',icon:'stop',line1:'STOP',line2:fmtD(Math.max(0,g.dn))};
@@ -991,9 +1039,9 @@ function updateCueCore(g){
   }
   // voix + bips
   const now=performance.now();
-  if(e&&g.lvl==='lift'&&!S.said[e.key+'L']){ S.said[e.key+'L']=1; S.log.cues++; S.pend.push({t:now,v:S.v,key:e.key}); logLine(`Conseil : levez le pied (${e.label}, ${Math.round(g.dn)} m, ${Math.round(S.v*KMH)} km/h)`); beep(880,2); say(`Levez le pied. ${e.say} dans ${Math.max(50,Math.round(g.dn/50)*50)} mètres.`); }
-  if(e&&g.lvl==='brake'&&!S.said[e.key+'B']){ S.said[e.key+'B']=1; logLine(`Conseil : freinez (${e.label}, ${Math.round(g.dn)} m, ${Math.round(S.v*KMH)} km/h)`); beep(440,1); say('Freinez doucement.'); }
-  if(e&&g.lvl==='stopzone'&&!S.said[e.key+'S']&&e.type==='stop'){ S.said[e.key+'S']=1; beep(440,1); say('Stop.'); }
+  if(e&&g.lvl==='lift'&&!S.said[e.key+'L']){ S.said[e.key+'L']=1; S.log.cues++; S.pend.push({t:now,v:S.v,key:e.key,saved0:S.eco.saved}); logLine(`Conseil : levez le pied (${e.label}, ${Math.round(g.dn)} m, ${Math.round(S.v*KMH)} km/h)`); beep(880,2); say(voiceTxt('lift',{what:e.say,d:Math.max(50,Math.round(g.dn/50)*50)})); }
+  if(e&&g.lvl==='brake'&&!S.said[e.key+'B']){ S.said[e.key+'B']=1; logLine(`Conseil : freinez (${e.label}, ${Math.round(g.dn)} m, ${Math.round(S.v*KMH)} km/h)`); beep(440,1); say(voiceTxt('brake')); }
+  if(e&&g.lvl==='stopzone'&&!S.said[e.key+'S']&&e.type==='stop'){ S.said[e.key+'S']=1; beep(440,1); say(voiceTxt('stop')); }
 }
 
 /* ===== Son et voix ===== */
@@ -1300,9 +1348,9 @@ setInterval(()=>{ if(!inBackground()||!S.running||S.mode!=='sim') return; S.v=SI
 let wake=null;
 async function keepAwake(){ try{ if(NATIVE&&PLUG.KeepAwake){ await PLUG.KeepAwake.keepAwake(); return; } if('wakeLock' in navigator) wake=await navigator.wakeLock.request('screen'); }catch(e){} }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.running) keepAwake(); else if(S.running) logLine('Page passée en arrière-plan'); });
-function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative('Pied Levé est prêt.'); return; } if(!voiceOn) return; try{ const u=new SpeechSynthesisUtterance('Pied Levé est prêt.'); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
+function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative(voiceTxt('ready')); return; } if(!voiceOn) return; try{ const u=new SpeechSynthesisUtterance(voiceTxt('ready')); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
 function reset(){
-  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},curveMem:[],liftShown:null,vS:null,veh:null,auto:false,idleSince:0,autoEnd:false,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
+  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},curveMem:[],cheer:null,liftShown:null,vS:null,veh:null,auto:false,idleSince:0,autoEnd:false,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
   $('hEco').textContent='0,00 L'; $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
   camH=null; Object.assign(SIM,{v:0,s:0,acc:0,wait:0,done:false});
 }
@@ -1329,7 +1377,7 @@ function start(mode,opt){ opt=opt||{};
   if(!window.isSecureContext){ $('startMsg').textContent='Cette page doit être ouverte en https pour accéder au GPS.'; return; }
   if(!navigator.geolocation){ $('startMsg').textContent='Ce navigateur ne donne pas accès à la position.'; return; }
   reset(); S.mode=mode; S.running=true; if(!opt.quiet) unlockAudio(); keepAwake();
-  $('ovStart').hidden=true; $('ovMenu').hidden=true; $('ovEnd').hidden=true; $('drive').hidden=false; $('etaBox').hidden=!PLAN; $('cMode').hidden=mode!=='sim'; glDrive();
+  $('ovStart').hidden=true; $('ovMenu').hidden=true; $('ovBadges').hidden=true; $('toast').hidden=true; $('ovEnd').hidden=true; $('drive').hidden=false; $('etaBox').hidden=!PLAN; $('cMode').hidden=mode!=='sim'; glDrive();
   logLine(`Démarrage (${mode==='sim'?'simulation':'route réelle'})`);
   if(PLAN) logLine(`Destination : ${PLAN.dest.name} (${nf(PLAN.distance/1000,1)} km, ${Math.round(PLAN.duration/60)} min estimées sans trafic)`);
   setMap('–'); setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert');
@@ -1356,8 +1404,7 @@ function end(){
   $('eSub').textContent=`Trajet terminé · ${nf(L.dist/1000,1)} km · ${Math.max(1,Math.round(dur/60))} min${S.mode==='sim'?' · simulation':''}`;
   $('eFolN').textContent=L.cues?`${L.fol} sur ${L.cues}`:'–'; $('eFolBar').style.width=L.cues?`${Math.round(L.fol/L.cues*100)}%`:'0';
   $('eMsg').textContent=!L.cues?'Aucun conseil sur ce trajet.':L.hard===0?'Aucun freinage fort, bravo.':L.hard===1?'Un seul freinage fort.':`${L.hard} freinages forts : levez le pied un peu plus tôt.`;
-  if(S.mode==='real'&&E.saved>0){ try{ localStorage.setItem('pl-total-saved',String((+localStorage.getItem('pl-total-saved')||0)+E.saved)); }catch(e){} }
-  homeSaved();
+  funEnd(L,E,dur);
   $('eEcoTxt').textContent=`Estimation par le modèle d’une citadine thermique, à partir de votre vitesse GPS : ${l100!=null?`environ ${nf(l100,1)} L/100 km, `:''}${nf(E.saved,2)} L économisés en roulant pied levé sur ${nf(E.coast/1000,1)} km (≈ ${nf(pct,0)} % du carburant, ${nf(E.saved*PRICE,2)} € à ${nf(PRICE,2)} €/L). Ce n’est pas une mesure réelle.`;
   const over=L.passes.filter(p=>p.vt>0&&p.v>p.vt+5).length;
   const txt=[`Pied Levé, journal du ${new Date().toLocaleString('fr-FR')}`,`Mode : ${S.mode==='sim'?'simulation':'route réelle'}`,
@@ -1373,7 +1420,95 @@ $('bLastLog').onclick=async()=>{ let t=null; try{ t=localStorage.getItem('piedle
   const m=$('mLog'); if(!t){ m.textContent='Aucun trajet pour l’instant'; return; }
   try{ await navigator.clipboard.writeText(t); m.textContent='Journal copié : collez-le dans la conversation'; }catch(e){ m.textContent='Copie impossible sur ce téléphone'; } };
 // Économies cumulées (trajets réels), affichées sur l'accueil
-function homeSaved(){ let t=0; try{ t=+localStorage.getItem('pl-total-saved')||0; }catch(e){} const h=$('homeSaved'); h.hidden=t<0.01; h.textContent=`${nf(t,t<10?2:1)} L économisés`; }
+/* ===== Côté fun : bravo en direct, note du trajet, euros et objectifs, badges, styles de voix ===== */
+const FUN={ key:'pl-stats' };
+function stLoad(){ let st=null; try{ st=JSON.parse(localStorage.getItem(FUN.key)||'null'); }catch(e){}
+  if(!st){ st={saved:0,months:{},trips:0,fol:0,rpOk:0,streak:0,lastDay:'',badges:{},best:0}; try{ st.saved=+localStorage.getItem('pl-total-saved')||0; }catch(e){} }
+  return st; }
+function stSave(st){ try{ localStorage.setItem(FUN.key,JSON.stringify(st)); }catch(e){} }
+const dayStr=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const monthStr=d=>dayStr(d).slice(0,7);
+const eur=l=>l*PRICE, fe=x=>`${nf(x,2)} €`;
+// Objectifs : ce que les économies permettent de s'offrir
+const GOALS=[[2,'un café'],[5,'un petit-déjeuner'],[12,'une place de ciné'],[30,'un resto'],[70,'un plein']];
+function nextGoal(total){ for(const g of GOALS) if(total<g[0]) return g; const k=Math.floor(total/70)+1; return [k*70,'un plein de plus']; }
+// Badges
+const ICO_STAR='<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.2l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z"/></svg>';
+const BADGES=[
+  {id:'premier',t:'Premier trajet',d:'Faire un premier trajet avec Pied Levé',ok:(st)=>st.trips>=1},
+  {id:'velours',t:'Pied de velours',d:'Un trajet de plus de 3 km sans aucun freinage fort',ok:(st,tr)=>tr&&tr.km>=3&&tr.hard===0},
+  {id:'etoiles',t:'Trois étoiles',d:'Obtenir 85/100 ou plus sur un trajet',ok:(st,tr)=>tr&&tr.score!=null&&tr.score>=85},
+  {id:'eleve',t:'Bon élève',d:'Suivre 10 conseils « levez le pied »',ok:(st)=>st.fol>=10},
+  {id:'maitre',t:'Maître du pied levé',d:'Suivre 50 conseils « levez le pied »',ok:(st)=>st.fol>=50},
+  {id:'rp',t:'Roi du rond-point',d:'Passer 10 ronds-points à la bonne vitesse',ok:(st)=>st.rpOk>=10},
+  {id:'serie3',t:'3 jours de suite',d:'Rouler avec Pied Levé 3 jours d’affilée',ok:(st)=>st.streak>=3},
+  {id:'serie7',t:'Une semaine entière',d:'Rouler avec Pied Levé 7 jours d’affilée',ok:(st)=>st.streak>=7},
+  {id:'euro1',t:'Premier euro',d:'Économiser 1 € de carburant',ok:(st)=>eur(st.saved)>=1},
+  {id:'euro10',t:'Tirelire',d:'Économiser 10 € de carburant',ok:(st)=>eur(st.saved)>=10}];
+// Note du trajet : conseils suivis, freinages forts, obstacles passés trop vite
+function tripScore(L){ if(L.dist<500) return null;
+  const folPart=L.cues?L.fol/L.cues:1, over=L.passes.filter(p=>p.vt>0&&p.v>p.vt+5).length;
+  return Math.round(clamp(100*(0.3+0.7*folPart)-10*L.hard-5*over,0,100)); }
+const PHRASES={3:['Pied de velours !','Conduite de chef !','Votre moteur ronronne de plaisir.'],2:['Pas mal du tout !','Bonne conduite, encore un petit effort.','Le pied est presque léger.'],1:['Un peu lourd du pied droit…','On fera mieux au prochain trajet !','Les freins ont beaucoup travaillé aujourd’hui.']};
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+// Styles de voix
+const VOICES={sobre:'Sobre',coach:'Coach',humour:'Humour'};
+let voiceStyle='sobre'; try{ const v=localStorage.getItem('pl-voice-style'); if(VOICES[v]) voiceStyle=v; }catch(e){}
+function voiceTxt(k,a){ a=a||{}; const st=voiceStyle;
+  const T={
+    ready:{sobre:'Pied Levé est prêt.',coach:'C’est parti, on roule malin !',humour:'Pied Levé est prêt. Pas de pied lourd aujourd’hui.'},
+    lift:{sobre:`Levez le pied. ${a.what} dans ${a.d} mètres.`,coach:`Allez, on lève le pied ! ${a.what} dans ${a.d} mètres.`,humour:`Pied léger : ${a.what} dans ${a.d} mètres. Votre portefeuille vous remercie.`},
+    brake:{sobre:'Freinez doucement.',coach:'On freine, en douceur !',humour:'Un petit coup de frein, tout en douceur.'},
+    stop:{sobre:'Stop.',coach:'Stop, on marque bien l’arrêt !',humour:'Stop. Même les escargots s’arrêtent.'},
+    arrive:{sobre:'Vous êtes arrivé.',coach:'Arrivé ! Beau trajet.',humour:'Vous êtes arrivé. Votre moteur vous dit merci.'},
+    bravo:{sobre:'Bien joué.',coach:'Excellent, continue comme ça !',humour:'Bravo, pied de velours !'}};
+  return (T[k]&&T[k][st])||(T[k]&&T[k].sobre)||''; }
+$('bVoiceStyle').onclick=()=>{ const ks=Object.keys(VOICES); voiceStyle=ks[(ks.indexOf(voiceStyle)+1)%ks.length];
+  try{ localStorage.setItem('pl-voice-style',voiceStyle); }catch(e){} $('mVoiceStyle').textContent=VOICES[voiceStyle];
+  if(voiceOn){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech) speakNative(voiceTxt('bravo')); else { try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(voiceTxt('bravo')); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} } } };
+$('mVoiceStyle').textContent=VOICES[voiceStyle];
+// « Bien joué ! » : quand un conseil est suivi, petit son, message et gain en euros, aussi dans la bulle
+function chime(){ if(!voiceOn||!actx) return; try{ [784,1046].forEach((f,k)=>{ const o=actx.createOscillator(),gn=actx.createGain(),t=actx.currentTime+k*0.12; o.frequency.value=f; gn.gain.setValueAtTime(0.0001,t); gn.gain.exponentialRampToValueAtTime(0.25,t+0.02); gn.gain.exponentialRampToValueAtTime(0.0001,t+0.22); o.connect(gn).connect(actx.destination); o.start(t); o.stop(t+0.24); }); }catch(e){} }
+let toastT=null;
+function cheer(q){ const gain=Math.max(0.01,eur(Math.max(0,S.eco.saved-(q.saved0||0)))), txt='+'+fe(gain);
+  S.cheer={until:performance.now()+3500,txt}; $('toastAmt').textContent=txt; const t=$('toast'); t.hidden=true; void t.offsetWidth; t.hidden=false;
+  clearTimeout(toastT); toastT=setTimeout(()=>{ t.hidden=true; },3000);
+  chime(); setTimeout(()=>say(voiceTxt('bravo')),350); logLine(`Bravo : conseil suivi (${txt})`); }
+// Fin du trajet : note, euros, badges ; les simulations ne sont pas enregistrées
+function funEnd(L,E,dur){
+  const sim=S.mode==='sim', st=stLoad(), score=tripScore(L), km=L.dist/1000;
+  const stars=score==null?0:score>=85?3:score>=60?2:1;
+  $('eStars').innerHTML=[1,2,3].map(k=>ICO_STAR.replace('<svg','<svg class="'+(k<=stars?'':'off')+'"')).join('');
+  $('eNote').innerHTML=score==null?'–':`${score}<small>/100</small>`;
+  $('ePhrase').textContent=score==null?'Trajet trop court pour être noté':pick(PHRASES[stars]);
+  $('eSaved').textContent=fe(eur(E.saved)); $('eLit').textContent=E.saved<0.005?'soit moins de 0,01 L de carburant':`soit ${nf(E.saved,2)} L de carburant`;
+  // statistiques (copie pour une simulation : on montre ce qui se passerait, sans rien garder)
+  const s2=sim?JSON.parse(JSON.stringify(st)):st, now=new Date(), today=dayStr(now);
+  s2.trips++; s2.fol+=L.fol; s2.saved+=E.saved; s2.months[monthStr(now)]=(s2.months[monthStr(now)]||0)+E.saved;
+  s2.rpOk+=L.passes.filter(p=>p.type==='rp'&&p.v<=p.vt+5).length;
+  if(s2.lastDay!==today){ const y=new Date(now); y.setDate(y.getDate()-1); s2.streak=s2.lastDay===dayStr(y)?s2.streak+1:1; s2.lastDay=today; }
+  if(score!=null) s2.best=Math.max(s2.best||0,score);
+  const tr={km,hard:L.hard,score}, fresh=BADGES.filter(b=>!s2.badges[b.id]&&b.ok(s2,tr));
+  fresh.forEach(b=>{ s2.badges[b.id]=today; });
+  if(!sim) stSave(s2);
+  const box=$('eBadges'); box.innerHTML=''; box.hidden=!fresh.length;
+  fresh.forEach(b=>box.append(badgeEl(b,true,sim?'Nouveau badge (simulation, non enregistré)':'Nouveau badge !')));
+  if(fresh.length) logLine(`Badges : ${fresh.map(b=>b.t).join(', ')}`);
+  logLine(`Note du trajet : ${score==null?'non notée (trop court)':score+'/100'}`);
+  homeSaved(); }
+function badgeEl(b,on,sub){ const d=document.createElement('div'); d.className='badge'+(on?'':' off');
+  d.innerHTML=`<div class="bi">${ICO_STAR}</div><div><b></b><small></small></div>`; d.querySelector('b').textContent=b.t; d.querySelector('small').textContent=sub||b.d; return d; }
+function badgesRender(){ const st=stLoad(), n=BADGES.filter(b=>st.badges[b.id]).length;
+  $('mBadges').textContent=`${n} sur ${BADGES.length}`; $('bdSum').textContent=n?`${n} badge${n>1?'s':''} sur ${BADGES.length}. Continuez à rouler pied levé pour débloquer les autres.`:'Aucun badge pour l’instant : faites un premier trajet !';
+  const list=$('bdList'); list.innerHTML=''; BADGES.forEach(b=>list.append(badgeEl(b,!!st.badges[b.id],st.badges[b.id]?b.d:b.d))); }
+$('bBadges').onclick=()=>{ badgesRender(); $('ovBadges').hidden=false; }; $('bBadgesBack').onclick=()=>{ $('ovBadges').hidden=true; };
+// Accueil : économies du mois et prochain objectif
+function homeSaved(){ const st=stLoad(), m=eur(st.months[monthStr(new Date())]||0), tot=eur(st.saved), h=$('homeSaved');
+  h.hidden=tot<=0; h.textContent=`${fe(m)} ce mois-ci`;
+  const g=nextGoal(tot), prev=[...GOALS].reverse().find(x=>x[0]<=tot), base=prev?prev[0]:0, gl=$('homeGoal');
+  gl.hidden=tot<=0; $('goalTxt').textContent=`Encore ${fe(g[0]-tot)} pour ${g[1]}`; $('goalAmt').textContent=`${fe(tot)} au total`;
+  $('goalBar').style.width=`${Math.round(clamp((tot-base)/(g[0]-base),0,1)*100)}%`;
+  $('mBadges').textContent=`${BADGES.filter(b=>st.badges[b.id]).length} sur ${BADGES.length}`; }
 homeSaved();
 $('bEnd').onclick=end; $('bAgain').onclick=()=>{ if(UPD.ready&&!NATIVE){ location.reload(); return; } $('ovEnd').hidden=true; $('drive').hidden=true; $('ovStart').hidden=false; glHome(); applyUpdate(); };
 
