@@ -243,7 +243,9 @@ textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;
 (() => {
 "use strict";
 /* Appli Android (Capacitor) : modules natifs pour la voix et l'écran allumé */
-const CAP=window.Capacitor, NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform()), PLUG=NATIVE?(CAP.Plugins||{}):{};
+const CAP=window.Capacitor, NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform());
+const capReg=(window.capacitorExports&&window.capacitorExports.registerPlugin)||(CAP&&CAP.registerPlugin);
+const PLUG=!NATIVE?{}:capReg?{TextToSpeech:capReg('TextToSpeech'),KeepAwake:capReg('KeepAwake'),BackgroundGeolocation:capReg('BackgroundGeolocation')}:(CAP.Plugins||{});
 /* ===== Modèle véhicule ===== */
 const M=1250,G=9.81,CRR=0.011,RHO=1.2,CDA=0.62,EB=0.32,KMH=3.6,LOOK=1500,ETA=0.27,EF=32e6,BASE=0.00015,IDLE=0.00017,PRICE=1.80;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -590,7 +592,8 @@ function ecoStep(v0,v1,dt){
   $('hEco').textContent=`${nf(E.saved,2)} L`;
 }
 /* ===== Réception d'une position ===== */
-function onFix(p){
+function onFix(p){ onFixCore(p); backgroundTick(); }
+function onFixCore(p){
   const c=p.coords, now=performance.now();
   if(!S.ref) setRef(c.latitude,c.longitude);
   if(PLAN&&!S.route) initRoute(PLAN);
@@ -646,6 +649,8 @@ function onFix(p){
   // routes voisines pour l'affichage
   S.near=[]; for(const w of S.ways.values()){ for(let k=0;k<w.pts.length;k+=2){ if(Math.hypot(w.pts[k][0]-xy[0],w.pts[k][1]-xy[1])<900){ S.near.push(w); break; } } }
 }
+// Appli en arrière-plan (ex. Waze devant) : l'écran n'est plus redessiné, on calcule le conseil (et la voix) à chaque position
+function backgroundTick(){ if(!S.running||!document.hidden) return; try{ const v=S.vS??S.v, g=S.path?guide(v,0):{lvl:'go'}; updateCue(g); }catch(e){} }
 function onGeoErr(e){ const g=$('cGps'); g.textContent='GPS : '+(e.code===1?'refusé':'indisponible'); g.className='chip err'; if(e.code===1){ $('cT').textContent='GPS refusé'; $('cS').textContent='Autorisez la localisation pour ce site dans les réglages du navigateur'; } }
 
 /* ===== Consignes ===== */
@@ -995,6 +1000,22 @@ function reset(){
   $('hEco').textContent='0,00 L'; $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
   camH=null; Object.assign(SIM,{v:0,s:0,acc:0,wait:0,done:false});
 }
+/* Appli Android : GPS qui continue en arrière-plan (notification « Pied Levé en route » pendant le trajet) */
+let bgWatch=null;
+function startNativeGps(){
+  const B=PLUG.BackgroundGeolocation; if(!NATIVE||!B) return false;
+  B.addWatcher({backgroundTitle:'Pied Levé en route',backgroundMessage:'Vous conseille quand lever le pied, même derrière Waze.',requestPermissions:true,stale:false,distanceFilter:0},
+    (loc,err)=>{
+      if(err){ onGeoErr({code:err.code==='NOT_AUTHORIZED'?1:2});
+        if(err.code==='NOT_AUTHORIZED'&&confirm('Pied Levé a besoin de votre position. Ouvrir les réglages ?')) B.openSettings().catch(()=>{});
+        return; }
+      if(!loc||!S.running) return;
+      onFix({coords:{latitude:loc.latitude,longitude:loc.longitude,accuracy:loc.accuracy,speed:loc.speed,heading:loc.bearing},timestamp:loc.time||Date.now()});
+    }).then(id=>{ if(S.running) bgWatch=id; else B.removeWatcher({id}).catch(()=>{}); }).catch(()=>{ // module indisponible : GPS classique
+      if(S.running&&S.watch==null) S.watch=navigator.geolocation.watchPosition(onFix,onGeoErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000}); });
+  return true;
+}
+function stopNativeGps(){ const B=PLUG.BackgroundGeolocation; if(bgWatch!=null&&B){ B.removeWatcher({id:bgWatch}).catch(()=>{}); } bgWatch=null; }
 function start(mode){
   if(!window.isSecureContext){ $('startMsg').textContent='Cette page doit être ouverte en https pour accéder au GPS.'; return; }
   if(!navigator.geolocation){ $('startMsg').textContent='Ce navigateur ne donne pas accès à la position.'; return; }
@@ -1003,7 +1024,7 @@ function start(mode){
   logLine(`Démarrage (${mode==='sim'?'simulation':'route réelle'})`);
   if(PLAN) logLine(`Destination : ${PLAN.dest.name} (${nf(PLAN.distance/1000,1)} km, ${Math.round(PLAN.duration/60)} min estimées sans trafic)`);
   setMap('–'); setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert');
-  if(mode==='real'){ S.watch=navigator.geolocation.watchPosition(onFix,onGeoErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
+  if(mode==='real'){ if(!startNativeGps()) S.watch=navigator.geolocation.watchPosition(onFix,onGeoErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
   else {
     const go=(lat,lon,src)=>{ SIM.lat=lat; SIM.lon=lon; logLine(`Simulation depuis ${src}`); simEmit(); };
     navigator.geolocation.getCurrentPosition(p=>go(p.coords.latitude,p.coords.longitude,'votre position'),()=>go(47.2184,-1.5536,'Nantes (position indisponible)'),{enableHighAccuracy:true,timeout:8000,maximumAge:60000});
@@ -1012,6 +1033,7 @@ function start(mode){
 function end(){
   if(!S.running) return; S.running=false;
   if(S.watch!=null){ navigator.geolocation.clearWatch(S.watch); S.watch=null; }
+  stopNativeGps();
   try{ wake&&wake.release(); }catch(e){} try{ if(NATIVE&&PLUG.KeepAwake) PLUG.KeepAwake.allowSleep(); }catch(e){}
   const L=S.log, dur=(Date.now()-L.t0)/1000;
   $('eDist').textContent=`${nf(L.dist/1000,1)} km`;

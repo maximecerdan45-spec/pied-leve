@@ -8,6 +8,7 @@
     "android:sync": "npm run build:www && npx cap sync android"
   },
   "dependencies": {
+    "@capacitor-community/background-geolocation": "^1.2.26",
     "@capacitor-community/keep-awake": "8.0.1",
     "@capacitor-community/text-to-speech": "8.0.2",
     "@capacitor/android": "8.5.3",

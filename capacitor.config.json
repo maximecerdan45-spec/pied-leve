@@ -1,5 +1,8 @@
 {
   "appId": "app.piedleve",
   "appName": "Pied Levé",
-  "webDir": "www"
+  "webDir": "www",
+  "android": {
+    "useLegacyBridge": true
+  }
 }
