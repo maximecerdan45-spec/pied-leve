@@ -23,6 +23,8 @@ public class MainActivity extends BridgeActivity {
     private void noteAutostart(Intent intent) {
         if (intent != null && intent.getBooleanExtra("autostart", false)) {
             intent.removeExtra("autostart");
+            // ouverture discrète : pas d'animation (on repart aussitôt derrière Waze)
+            overridePendingTransition(0, 0);
             BubblePlugin.autostartPending = true;
             BubblePlugin.fireAutostart();
         }

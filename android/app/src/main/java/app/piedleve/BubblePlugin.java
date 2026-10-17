@@ -90,7 +90,10 @@ public class BubblePlugin extends Plugin {
     @PluginMethod
     public void toBack(PluginCall call) {
         final long asked = call.getLong("t", 0L);
-        if (getActivity() != null) getActivity().runOnUiThread(() -> getActivity().moveTaskToBack(true));
+        if (getActivity() != null) getActivity().runOnUiThread(() -> {
+            getActivity().moveTaskToBack(true);
+            getActivity().overridePendingTransition(0, 0); // retour vers Waze sans animation
+        });
         JSObject r = new JSObject();
         r.put("queued", asked > 0 ? Math.max(0, System.currentTimeMillis() - asked) : -1);
         call.resolve(r);
