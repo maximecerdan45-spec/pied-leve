@@ -95,7 +95,7 @@ function serve() {
   const steps = [], turns = [], cams = [];
   for (let i = 1; i < s.length; i++) {
     const dt = (s[i][0] - s[i - 1][0]) / 1000; if (dt <= 0) continue;
-    steps.push(Math.hypot(s[i][1] - s[i - 1][1], s[i][2] - s[i - 1][2]));
+    steps.push(Math.hypot(s[i][1] - s[i - 1][1], s[i][2] - s[i - 1][2]) / (dt * 60)); // ramené à une image de 1/60 s (une image sautée ne compte pas comme un à-coup)
     turns.push(Math.abs(ang(s[i][3] - s[i - 1][3])) * 180 / Math.PI / (dt * 60)); // degrés par image à 60 i/s
     if (s[i][4] != null && s[i - 1][4] != null) cams.push(Math.abs(ang(s[i][4] - s[i - 1][4])) * 180 / Math.PI / (dt * 60));
   }

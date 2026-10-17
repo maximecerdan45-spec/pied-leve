@@ -11,6 +11,8 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        // Module maison : bulle flottante par-dessus les autres applis
+        registerPlugin(BubblePlugin.class);
         super.onCreate(savedInstanceState);
         // Android 13+ : autorisation d'afficher la notification « Pied Levé en route »,
         // nécessaire pour que le GPS continue quand une autre appli (Waze) est devant.

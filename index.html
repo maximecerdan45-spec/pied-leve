@@ -245,7 +245,7 @@ textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;
 /* Appli Android (Capacitor) : modules natifs pour la voix et l'écran allumé */
 const CAP=window.Capacitor, NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform());
 const capReg=(window.capacitorExports&&window.capacitorExports.registerPlugin)||(CAP&&CAP.registerPlugin);
-const PLUG=!NATIVE?{}:capReg?{TextToSpeech:capReg('TextToSpeech'),KeepAwake:capReg('KeepAwake'),BackgroundGeolocation:capReg('BackgroundGeolocation')}:(CAP.Plugins||{});
+const PLUG=!NATIVE?{}:capReg?{TextToSpeech:capReg('TextToSpeech'),KeepAwake:capReg('KeepAwake'),BackgroundGeolocation:capReg('BackgroundGeolocation'),Bubble:capReg('Bubble')}:(CAP.Plugins||{});
 /* ===== Modèle véhicule ===== */
 const M=1250,G=9.81,CRR=0.011,RHO=1.2,CDA=0.62,EB=0.32,KMH=3.6,LOOK=1500,ETA=0.27,EF=32e6,BASE=0.00015,IDLE=0.00017,PRICE=1.80;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -695,8 +695,39 @@ function setCue(cls,ico,t,s,p){
   if($('cS').textContent!==s) $('cS').textContent=s;
   $('cP').style.width=clamp(p||0,0,1)*100+'%';
 }
+/* ===== Bulle flottante (appli Android, par-dessus Waze) ===== */
+const BUB={on:false,last:'',info:{color:'#5A6560',line1:'PIED LEVÉ',line2:''}};
+function bubbleInfo(g){
+  const kmh=Math.round((S.vS??S.v)*KMH)+' km/h';
+  if(!S.xy||!S.ways.size||!S.path||!g) return {color:'#5A6560',line1:'PIED LEVÉ',line2:S.xy?kmh:''};
+  const e=g.e;
+  switch(g.lvl){
+    case 'stopzone': return e&&e.type==='arrivee'?{color:'#E58A10',line1:'ARRIVÉE',line2:fmtD(Math.max(0,g.dn))}:{color:'#D3433A',line1:'STOP',line2:fmtD(Math.max(0,g.dn))};
+    case 'brake': return {color:'#D3433A',line1:'FREINEZ',line2:fmtD(g.dn)};
+    case 'lift': return {color:'#E58A10',line1:'LEVEZ LE PIED',line2:fmtD(g.dn)};
+    case 'prep': return {color:'#1C5A72',line1:'LEVEZ DANS',line2:fmtD(g.liftAt)};
+    default: return {color:'#24965C',line1:'ROULEZ',line2:kmh};
+  }
+}
+function bubbleSet(g){ BUB.info=bubbleInfo(g); const k=JSON.stringify(BUB.info); if(BUB.on&&k!==BUB.last){ BUB.last=k; PLUG.Bubble.update(BUB.info).catch(()=>{}); } }
+function bubbleShow(){ const B=PLUG.Bubble; if(!NATIVE||!B||!S.running||BUB.on) return; BUB.on=true; BUB.last=JSON.stringify(BUB.info); B.show(BUB.info).catch(()=>{ BUB.on=false; }); }
+function bubbleHide(){ const B=PLUG.Bubble; if(!B||!BUB.on) return; BUB.on=false; B.hide().catch(()=>{}); }
+// Au départ d'un trajet : proposer (au plus une fois par semaine) d'autoriser la bulle
+async function bubbleAsk(){
+  const B=PLUG.Bubble; if(!NATIVE||!B) return;
+  try{ if((await B.hasPermission()).granted) return;
+    let last=0; try{ last=+localStorage.getItem('pl-bubble-ask')||0; }catch(e){}
+    if(Date.now()-last<7*864e5) return; try{ localStorage.setItem('pl-bubble-ask',String(Date.now())); }catch(e){}
+    if(confirm('Afficher une bulle avec les conseils par-dessus Waze ?\n\nAndroid va ouvrir le réglage « Affichage par-dessus d’autres applis » : activez-le pour Pied Levé, puis revenez.')) await B.requestPermission();
+  }catch(e){}
+}
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) bubbleShow(); else bubbleHide(); });
+
 function updateCue(g){
   if(!S.running) return;
+  updateCueCore(g); bubbleSet(g);
+}
+function updateCueCore(g){
   if(!S.xy){ setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert'); return; }
   if(!S.ways.size){ setCue('wait','wait','Chargement de la carte…','Données OpenStreetMap autour de vous'); return; }
   if(S.arrived&&S.v<3){ setCue('wait','wait','Vous êtes arrivé','Appuyez sur Terminer pour voir le bilan'); return; }
@@ -1024,6 +1055,7 @@ function start(mode){
   logLine(`Démarrage (${mode==='sim'?'simulation':'route réelle'})`);
   if(PLAN) logLine(`Destination : ${PLAN.dest.name} (${nf(PLAN.distance/1000,1)} km, ${Math.round(PLAN.duration/60)} min estimées sans trafic)`);
   setMap('–'); setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert');
+  if(mode==='real') bubbleAsk();
   if(mode==='real'){ if(!startNativeGps()) S.watch=navigator.geolocation.watchPosition(onFix,onGeoErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
   else {
     const go=(lat,lon,src)=>{ SIM.lat=lat; SIM.lon=lon; logLine(`Simulation depuis ${src}`); simEmit(); };
@@ -1033,7 +1065,7 @@ function start(mode){
 function end(){
   if(!S.running) return; S.running=false;
   if(S.watch!=null){ navigator.geolocation.clearWatch(S.watch); S.watch=null; }
-  stopNativeGps();
+  stopNativeGps(); bubbleHide();
   try{ wake&&wake.release(); }catch(e){} try{ if(NATIVE&&PLUG.KeepAwake) PLUG.KeepAwake.allowSleep(); }catch(e){}
   const L=S.log, dur=(Date.now()-L.t0)/1000;
   $('eDist').textContent=`${nf(L.dist/1000,1)} km`;
