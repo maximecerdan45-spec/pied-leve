@@ -827,15 +827,16 @@ function setCue(cls,ico,t,s,p){
 /* ===== Bulle flottante (appli Android, par-dessus Waze) ===== */
 const BUB={on:false,last:'',info:{color:'#5A6560',line1:'PIED LEVÉ',line2:''}};
 function bubbleInfo(g){
+  // couleurs foncées (texte blanc lisible) et pictogramme identiques au bandeau de l'appli
   const kmh=Math.round((S.vS??S.v)*KMH)+' km/h';
-  if(!S.xy||!S.ways.size||!S.path||!g) return {color:'#5A6560',line1:'PIED LEVÉ',line2:S.xy?kmh:''};
+  if(!S.xy||!S.ways.size||!S.path||!g) return {color:'#3A4440',icon:'wait',line1:'PIED LEVÉ',line2:S.xy?kmh:''};
   const e=g.e;
   switch(g.lvl){
-    case 'stopzone': return e&&e.type==='arrivee'?{color:'#E58A10',line1:'ARRIVÉE',line2:fmtD(Math.max(0,g.dn))}:{color:'#D3433A',line1:'STOP',line2:fmtD(Math.max(0,g.dn))};
-    case 'brake': return {color:'#D3433A',line1:'FREINEZ',line2:fmtD(g.dn)};
-    case 'lift': return {color:'#E58A10',line1:'LEVEZ LE PIED',line2:fmtD(g.dn)};
-    case 'prep': return {color:'#1C5A72',line1:'LEVEZ DANS',line2:fmtD(g.liftAt)};
-    default: return {color:'#24965C',line1:'ROULEZ',line2:kmh};
+    case 'stopzone': return e&&e.type==='arrivee'?{color:'#A85E05',icon:'stop',line1:'ARRIVÉE',line2:fmtD(Math.max(0,g.dn))}:{color:'#B3332B',icon:'stop',line1:'STOP',line2:fmtD(Math.max(0,g.dn))};
+    case 'brake': return {color:'#B3332B',icon:'brake',line1:'FREINEZ',line2:fmtD(g.dn)};
+    case 'lift': return {color:'#A85E05',icon:'lift',line1:'LEVEZ LE PIED',line2:fmtD(g.dn)};
+    case 'prep': return {color:'#1C5A72',icon:'prep',line1:'LEVEZ DANS',line2:fmtD(g.liftAt)};
+    default: return {color:'#1E7A4C',icon:'go',line1:'ROULEZ',line2:kmh};
   }
 }
 // Le contenu est toujours transmis à Android, qui affiche la bulle de lui-même quand l'appli passe derrière

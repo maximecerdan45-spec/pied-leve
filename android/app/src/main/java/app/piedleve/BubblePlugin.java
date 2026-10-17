@@ -11,7 +11,10 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -45,7 +48,11 @@ public class BubblePlugin extends Plugin {
     private final Handler main = new Handler(Looper.getMainLooper());
     private WindowManager wm;
     private WindowManager.LayoutParams lp;
-    private LinearLayout bubble;
+    private android.widget.FrameLayout bubble;
+    private LinearLayout card;
+    private BubbleIcon icon;
+    private int curColor = 0;
+    private String curIcon = "";
     private TextView line1;
     private TextView line2;
     private GradientDrawable shape;
@@ -144,7 +151,7 @@ public class BubblePlugin extends Plugin {
     private boolean armed = false;
     // Pied Levé est derrière une autre appli
     private boolean inBack = false;
-    private String color = "#5A6560", text1 = "PIED LEVÉ", text2 = "";
+    private String color = "#3A4440", text1 = "PIED LEVÉ", text2 = "", iconKind = "wait";
     // Compte rendu pour le journal de l'appli
     private int pauses = 0, shows = 0;
     private String lastError = "";
@@ -293,6 +300,7 @@ public class BubblePlugin extends Plugin {
         color = call.getString("color", color);
         text1 = call.getString("line1", text1);
         text2 = call.getString("line2", text2);
+        iconKind = call.getString("icon", iconKind);
     }
 
     /** Début / fin de trajet : la bulle s'affichera d'elle-même quand l'appli passe derrière. */
@@ -368,6 +376,11 @@ public class BubblePlugin extends Plugin {
             if (bubble == null) build();
             apply(color, text1, text2);
             if (!shown) {
+                // apparition douce
+                card.setAlpha(0f);
+                card.setScaleX(0.85f);
+                card.setScaleY(0.85f);
+                card.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180).start();
                 wm.addView(bubble, lp);
                 shown = true;
                 shows++;
@@ -407,57 +420,145 @@ public class BubblePlugin extends Plugin {
         try {
             c = Color.parseColor(color);
         } catch (Exception e) {
-            c = Color.parseColor("#24965C");
+            c = Color.parseColor("#1E7A4C");
         }
-        shape.setColor(c);
+        // changement de couleur en fondu, petite impulsion quand il faut lever le pied ou freiner
+        if (curColor == 0) shape.setColor(c);
+        else if (c != curColor) {
+            android.animation.ValueAnimator va = android.animation.ValueAnimator.ofArgb(curColor, c);
+            va.setDuration(250);
+            va.addUpdateListener(a -> shape.setColor((int) a.getAnimatedValue()));
+            va.start();
+        }
+        if (!iconKind.equals(curIcon)) {
+            if (!curIcon.isEmpty() && ("lift".equals(iconKind) || "brake".equals(iconKind) || "stop".equals(iconKind))) {
+                card.animate().scaleX(1.08f).scaleY(1.08f).setDuration(120)
+                        .withEndAction(() -> card.animate().scaleX(1f).scaleY(1f).setDuration(160).start()).start();
+            }
+            curIcon = iconKind;
+            icon.setKind(iconKind);
+        }
+        curColor = c;
         line1.setText(l1);
         line2.setText(l2);
-        // texte plus petit s'il est long (ex. « 50 km/h »), pour tenir sur une ligne
-        line2.setTextSize(TypedValue.COMPLEX_UNIT_SP, l2 != null && l2.length() > 6 ? 14 : 18);
         line2.setVisibility(l2 == null || l2.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    /** Pictogramme de la bulle : les mêmes dessins que dans l'appli (grille de 48). */
+    static class BubbleIcon extends View {
+        private final Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG), ink = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Path path = new Path();
+        private String kind = "wait";
+
+        BubbleIcon(Context c) {
+            super(c);
+            ring.setColor(0x33FFFFFF);
+            ink.setColor(Color.WHITE);
+            ink.setStyle(Paint.Style.STROKE);
+            ink.setStrokeCap(Paint.Cap.ROUND);
+            ink.setStrokeJoin(Paint.Join.ROUND);
+        }
+
+        void setKind(String k) {
+            kind = k == null ? "wait" : k;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas cv) {
+            float w = getWidth(), h = getHeight();
+            cv.drawCircle(w / 2, h / 2, Math.min(w, h) / 2, ring);
+            // dessin en unités de 48, réduit dans le cercle
+            float k = Math.min(w, h) / 48f * 0.62f;
+            cv.save();
+            cv.translate(w / 2 - 24 * k, h / 2 - 24 * k);
+            cv.scale(k, k);
+            ink.setStrokeWidth(4.2f);
+            path.reset();
+            switch (kind) {
+                case "go":
+                    path.moveTo(24, 40); path.lineTo(24, 10);
+                    path.moveTo(12, 22); path.lineTo(24, 10); path.lineTo(36, 22);
+                    break;
+                case "lift":
+                case "prep":
+                    path.moveTo(14, 38); path.lineTo(34, 38);
+                    path.moveTo(24, 30); path.lineTo(24, 8);
+                    path.moveTo(15, 17); path.lineTo(24, 8); path.lineTo(33, 17);
+                    break;
+                case "brake":
+                    path.moveTo(24, 16); path.lineTo(24, 28);
+                    path.moveTo(24, 35); path.lineTo(24, 35.5f);
+                    path.moveTo(6, 41); path.lineTo(24, 6); path.lineTo(42, 41); path.close();
+                    break;
+                case "stop":
+                    path.moveTo(17, 6); path.lineTo(31, 6); path.lineTo(41, 16); path.lineTo(41, 30);
+                    path.lineTo(31, 40); path.lineTo(17, 40); path.lineTo(7, 30); path.lineTo(7, 16); path.close();
+                    path.moveTo(17, 23); path.lineTo(31, 23);
+                    break;
+                default:
+                    path.addCircle(24, 24, 15, Path.Direction.CW);
+                    path.moveTo(24, 15); path.lineTo(24, 24); path.lineTo(30, 28);
+            }
+            cv.drawPath(path, ink);
+            cv.restore();
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private void build() {
         Context ctx = getContext().getApplicationContext();
         wm = (WindowManager) ctx.getSystemService(Context.WINDOW_SERVICE);
-        int size = dp(88);
+        final DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
+        final int pad = dp(10); // place pour l'ombre
 
-        bubble = new LinearLayout(ctx);
-        bubble.setOrientation(LinearLayout.VERTICAL);
-        bubble.setGravity(Gravity.CENTER);
-        bubble.setPadding(dp(8), dp(8), dp(8), dp(8));
+        // Carte arrondie : pictogramme à gauche, consigne et distance à droite
+        bubble = new android.widget.FrameLayout(ctx);
+        bubble.setPadding(pad, pad, pad, pad);
+        bubble.setClipToPadding(false);
+        card = new LinearLayout(ctx);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(8), dp(8), dp(16), dp(8));
         shape = new GradientDrawable();
-        shape.setShape(GradientDrawable.OVAL);
-        shape.setStroke(dp(3), Color.WHITE);
-        bubble.setBackground(shape);
-        bubble.setElevation(dp(8));
+        shape.setCornerRadius(dp(26));
+        card.setBackground(shape);
+        card.setElevation(dp(6));
 
+        icon = new BubbleIcon(ctx);
+        LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(dp(42), dp(42));
+        ilp.setMarginEnd(dp(10));
+        card.addView(icon, ilp);
+
+        LinearLayout col = new LinearLayout(ctx);
+        col.setOrientation(LinearLayout.VERTICAL);
         line1 = new TextView(ctx);
-        line1.setTextColor(Color.WHITE);
-        line1.setTypeface(Typeface.DEFAULT_BOLD);
-        line1.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
-        line1.setGravity(Gravity.CENTER);
-        line1.setMaxLines(2);
-        line1.setLineSpacing(0, 0.9f);
-
+        line1.setTextColor(0xE6FFFFFF);
+        line1.setTypeface(Typeface.create("sans-serif-medium", Typeface.BOLD));
+        line1.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        line1.setLetterSpacing(0.04f);
+        line1.setMaxLines(1);
+        line1.setEllipsize(android.text.TextUtils.TruncateAt.END);
         line2 = new TextView(ctx);
         line2.setTextColor(Color.WHITE);
-        line2.setTypeface(Typeface.DEFAULT_BOLD);
-        line2.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
-        line2.setGravity(Gravity.CENTER);
+        line2.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+        line2.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
         line2.setMaxLines(1);
+        line2.setIncludeFontPadding(false);
+        col.addView(line1, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        col.addView(line2, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        card.addView(col, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        bubble.addView(line1, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        bubble.addView(line2, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        final int cardW = dp(176), cardH = dp(58);
+        bubble.addView(card, new android.widget.FrameLayout.LayoutParams(cardW, cardH));
+        final int winW = cardW + 2 * pad, winH = cardH + 2 * pad;
 
         int type = Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
-        lp = new WindowManager.LayoutParams(size, size, type,
+        lp = new WindowManager.LayoutParams(winW, winH, type,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.TOP | Gravity.START;
-        DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
-        lp.x = dm.widthPixels - size - dp(12);
+        lp.x = dm.widthPixels - winW;
         lp.y = Math.round(dm.heightPixels * 0.35f);
 
         final int slop = dp(8);
@@ -475,6 +576,7 @@ public class BubblePlugin extends Plugin {
                         downX = e.getRawX();
                         downY = e.getRawY();
                         moved = false;
+                        card.animate().scaleX(0.96f).scaleY(0.96f).setDuration(80).start();
                         return true;
                     case MotionEvent.ACTION_MOVE:
                         float dx = e.getRawX() - downX, dy = e.getRawY() - downY;
@@ -489,7 +591,26 @@ public class BubblePlugin extends Plugin {
                         }
                         return true;
                     case MotionEvent.ACTION_UP:
-                        if (!moved) openApp();
+                    case MotionEvent.ACTION_CANCEL:
+                        card.animate().scaleX(1f).scaleY(1f).setDuration(120).start();
+                        if (!moved) {
+                            if (e.getAction() == MotionEvent.ACTION_UP) openApp();
+                            return true;
+                        }
+                        // la bulle se range contre le bord le plus proche
+                        int sw = ctx.getResources().getDisplayMetrics().widthPixels;
+                        int target = lp.x + winW / 2 < sw / 2 ? 0 : sw - winW;
+                        android.animation.ValueAnimator va = android.animation.ValueAnimator.ofInt(lp.x, target);
+                        va.setDuration(220);
+                        va.setInterpolator(new android.view.animation.DecelerateInterpolator());
+                        va.addUpdateListener(a -> {
+                            lp.x = (int) a.getAnimatedValue();
+                            try {
+                                if (shown) wm.updateViewLayout(bubble, lp);
+                            } catch (Exception ignored) {
+                            }
+                        });
+                        va.start();
                         return true;
                     default:
                         return false;
