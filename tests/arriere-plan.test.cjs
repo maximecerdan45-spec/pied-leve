@@ -61,7 +61,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   check((await page.evaluate(() => __log.opened)).includes('usage'), '« Démarrer tout seul avec Waze » : ouvre le réglage « Accès aux données d\'utilisation »');
   check((await page.textContent('#bSetupDone')) === 'C’est prêt', 'tout est fait : le bouton devient « C’est prêt »');
   await page.click('#bSetupDone'); await page.waitForTimeout(300);
-  check(!(await page.isVisible('#ovSetup')) && /tout est prêt/.test(await page.textContent('#setupTxt')), 'retour à l\'accueil : « Réglages du téléphone · tout est prêt ✓ »');
+  check(!(await page.isVisible('#ovSetup')) && /Téléphone prêt/.test(await page.textContent('#setupTxt')), 'retour à l\'accueil : « Téléphone prêt ✓ »');
   await page.click('#bReal'); await page.waitForTimeout(300);
   const st = await page.evaluate(() => ({ w: __log.watchers, web: !!window.__webGps, awake: __log.awake }));
   check(st.w.length === 1 && !!st.w[0].backgroundMessage, 'le GPS passe par le module « arrière-plan » (avec notification)');
@@ -125,7 +125,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   check((await sim.$$('#setupList .srow')).length === 6, 'téléphone Xiaomi : une ligne de plus explique les fenêtres pop-up');
   await sim.click('#bSetupDone'); await sim.waitForTimeout(300);
   check(/2 à faire/.test(await sim.textContent('#setupTxt')), 'accueil : « Réglages du téléphone · 2 à faire » tant que ce n\'est pas fini');
-  await sim.click('#bSim'); await sim.waitForTimeout(4000);
+  await sim.click('#bMenu'); await sim.click('#bSim'); await sim.waitForTimeout(4000);
   // comme dans l'appli Android : aucun signal « page cachée », l'écran cesse simplement d'être redessiné
   await sim.evaluate(() => { window.requestAnimationFrame = () => 0; });
   await sim.waitForTimeout(6500);
