@@ -90,6 +90,20 @@ public class BubblePlugin extends Plugin {
         call.resolve();
     }
 
+    /** État de la veille « Waze », pour le journal. */
+    @PluginMethod
+    public void watchStatus(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("on", WazeWatchService.isOn(getContext()));
+        r.put("usage", usageGranted());
+        r.put("running", WazeWatchService.running);
+        r.put("ago", WazeWatchService.lastTick == 0 ? -1 : (System.currentTimeMillis() - WazeWatchService.lastTick) / 1000);
+        r.put("foreground", WazeWatchService.lastForeground);
+        r.put("launches", WazeWatchService.launches);
+        r.put("lastError", WazeWatchService.lastError);
+        call.resolve(r);
+    }
+
     @PluginMethod
     public void setAutoStart(PluginCall call) {
         boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
