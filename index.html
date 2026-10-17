@@ -605,7 +605,7 @@ function onFix(p){
   else if(S.headFrom&&Math.hypot(xy[0]-S.headFrom[0],xy[1]-S.headFrom[1])>8) hd=Math.atan2(xy[0]-S.headFrom[0],xy[1]-S.headFrom[1]);
   if(!S.headFrom||Math.hypot(xy[0]-S.headFrom[0],xy[1]-S.headFrom[1])>8) S.headFrom=xy;
   if(hd==null&&S.hd!=null&&v<2) hd=null;
-  S.hd=hd??S.hd; S.v=v; S.xy=xy; S.vPrev=v; S.tPrev=now; S.fixT=now;
+  S.hd=hd??S.hd; S.vS=S.vS==null?v:S.vS+0.35*(v-S.vS); S.v=v; S.xy=xy; S.vPrev=v; S.tPrev=now; S.fixT=now;
   // carte
   const needFetch=!S.fetchXY||Math.hypot(xy[0]-S.fetchXY[0],xy[1]-S.fetchXY[1])>600;
   if(needFetch&&!S.fetching&&(!S.fetchFail||now-S.fetchFail>20000)){
@@ -631,6 +631,10 @@ function onFix(p){
     const old=S.ev.find(o=>o.type===e.type&&o.wx!=null&&Math.hypot(o.wx-e.wx,o.wy-e.wy)<35); if(old) e.key=old.key; }
   // obstacles passés
   { for(const e of S.ev){ if(S.passed[e.key]) continue; if(!P.ev.some(f=>f.key===e.key)&&e.d<80){ S.passed[e.key]=1; if(e.vt>0||e.type==='stop'){ S.log.passes.push({label:e.label,vt:e.vt,v:Math.round(S.minNear?.[e.key]??v*KMH)}); logLine(`Passé : ${e.label} à ${Math.round(S.minNear?.[e.key]??v*KMH)} km/h (cible ${e.vt})`); } } } }
+  if(S.path&&S.dispXY&&S.mode!=='sim'){ let best=1e9, sb=0; const [qx,qy]=S.dispXY;
+    for(let k=0;k<P.pts.length-1&&P.pts[k][2]<80;k++){ const [x1,y1,d1]=P.pts[k],[x2,y2,d2]=P.pts[k+1], dx=x2-x1, dy=y2-y1, L2=dx*dx+dy*dy; if(L2<0.01) continue;
+      const t=((qx-x1)*dx+(qy-y1)*dy)/L2, tc=clamp(t,0,1), d=Math.hypot(qx-x1-tc*dx,qy-y1-tc*dy); if(d<best){ best=d; sb=k===0&&t<0?t*Math.sqrt(L2):d1+tc*(d2-d1); } }
+    S.advOff=best<25?clamp(sb,-15,15):0; S.advOffT=now; }
   S.path=P; S.ev=P.ev;
   S.minNear=S.minNear||{};
   for(const e of P.ev){ if(e.d<40){ const k=Math.round(v*KMH); S.minNear[e.key]=Math.min(S.minNear[e.key]??999,k); } }
@@ -640,6 +644,8 @@ function onFix(p){
 function onGeoErr(e){ const g=$('cGps'); g.textContent='GPS : '+(e.code===1?'refusé':'indisponible'); g.className='chip err'; if(e.code===1){ $('cT').textContent='GPS refusé'; $('cS').textContent='Autorisez la localisation pour ce site dans les réglages du navigateur'; } }
 
 /* ===== Consignes ===== */
+// Distance « lever le pied » avant l'obstacle : ne change que si l'écart dépasse 20 m (évite le tremblement)
+function liftBefore(e,v,vt){ const raw=coastDist(v,vt), r=S.liftRef[e.key]; if(r==null||Math.abs(raw-r)>20) S.liftRef[e.key]=Math.round(raw/5)*5; return S.liftRef[e.key]; }
 function guide(v,adv){
   let ctrl=null,best=Infinity,info=null;
   for(const e of S.ev){
@@ -650,7 +656,7 @@ function guide(v,adv){
     if(stop&&S.stopDone[e.key]) continue;
     if(stop&&dn<20&&dn>-3&&v>0.8) return {lvl:'stopzone',e,dn,info:{e,dn}};
     if(v<=vt+0.4){ if(S.lifted[e.key]&&dn<150&&best>0){ best=0; ctrl={e,dn,liftAt:0,brake:false,hold:true}; } continue; }
-    const liftAt=dEff-coastDist(v,vt), need=(v*v-vt*vt)/(2*Math.max(1,dEff));
+    const liftAt=dEff-liftBefore(e,v,vt), need=(v*v-vt*vt)/(2*Math.max(1,dEff));
     const brake=e.hard&&v>vt+1.4&&need>coastDecel(v)+0.6;
     const sc=brake?-1e6+dn:liftAt;
     if(sc<best){ best=sc; ctrl={e,dn,liftAt,brake}; }
@@ -735,7 +741,7 @@ function draw(g,adv,dtR){
   const zones=[]; const v=S.v;
   for(const e of S.ev){ const dn=e.d-adv; if(dn<-3) continue; const stop=e.vt===0, vt=(stop?12:e.vt)/KMH, dEff=stop?dn-15:dn;
     if(stop) zones.push([adv+Math.max(0,dn-20),adv+dn,2]);
-    if(v>vt+0.4){ const la=dEff-coastDist(v,vt); zones.push([adv+Math.max(0,la),adv+Math.max(0,stop?dn-20:dn),1]); } }
+    if(v>vt+0.4){ const la=dEff-liftBefore(e,v,vt); zones.push([adv+Math.max(0,la),adv+Math.max(0,stop?dn-20:dn),1]); } }
   const colAt=s=>{ let c=0; for(const z of zones){ if(s>=z[0]&&s<=z[1]) c=Math.max(c,z[2]); } return c; };
   const cols=[T.go,T.lift,T.brake]; let st=adv, cur=colAt(adv+0.1);
   const flush=(a,b,c)=>{ if(b-a<0.5) return; path(a,b); ctx.strokeStyle=cols[c]; ctx.lineWidth=8/ppm; ctx.stroke(); };
@@ -834,7 +840,7 @@ function drawGL(g,adv,dtR,ts){
   const zones=[]; const v=S.v;
   for(const e of S.ev){ const dn=e.d-adv; if(dn<-3) continue; const stop=e.vt===0, vt=(stop?12:e.vt)/KMH, dEff=stop?dn-15:dn;
     if(stop) zones.push([adv+Math.max(0,dn-20),adv+dn,2]);
-    if(v>vt+0.4){ const la=dEff-coastDist(v,vt); zones.push([adv+Math.max(0,la),adv+Math.max(0,stop?dn-20:dn),1]); } }
+    if(v>vt+0.4){ const la=dEff-liftBefore(e,v,vt); zones.push([adv+Math.max(0,la),adv+Math.max(0,stop?dn-20:dn),1]); } }
   const colAt=s=>{ let c=0; for(const z of zones){ if(s>=z[0]&&s<=z[1]) c=Math.max(c,z[2]); } return c; };
   const feats=[]; let cur=colAt(adv+0.1), line=[llOf(car[0],car[1])];
   for(let s=adv+5;s<=P.len;s+=5){ const q=pointAt(P.pts,s), c=colAt(s), pt=llOf(q[0],q[1]); line.push(pt);
@@ -882,8 +888,8 @@ let lastTs=performance.now();
 function frame(ts){
   const dtR=Math.min(0.1,Math.max(0,(ts-lastTs)/1000)); lastTs=ts;
   let adv=0;
-  if(S.mode==='sim') adv=SIM.s; else if(S.path) adv=clamp(S.v*(ts-S.fixT)/1000,0,40);
-  const v=S.mode==='sim'?SIM.v:S.v; if(S.mode==='sim') S.v=v;
+  if(S.mode==='sim') adv=SIM.s; else if(S.path){ const off=(S.advOff||0)*Math.max(0,1-(ts-(S.advOffT||0))/900); adv=Math.max(0,clamp(S.v*(ts-S.fixT)/1000,0,40)+off); S.dispXY=pointAt(S.path.pts,adv).slice(0,2); }
+  const v=S.mode==='sim'?SIM.v:(S.vS??S.v); if(S.mode==='sim') S.v=v;
   const g=S.path?guide(v,adv):{lvl:'go'};
   if(S.running){ if(S.mode==='sim') simTick(dtR*SIM.mult,g); updateCue(g); }
   if(S.fetching&&S.fetchStart){ const c=$('cMap'), t=`Carte : chargement… ${Math.round((ts-S.fetchStart)/1000)} s`; if(c.textContent!==t) c.textContent=t; }
@@ -898,7 +904,7 @@ async function keepAwake(){ try{ if('wakeLock' in navigator) wake=await navigato
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.running) keepAwake(); else if(S.running) logLine('Page passée en arrière-plan'); });
 function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} try{ const u=new SpeechSynthesisUtterance('Pied Levé est prêt.'); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
 function reset(){
-  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
+  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},vS:null,advOff:0,advOffT:0,dispXY:null,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
   $('hEco').textContent='0,00 L'; $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
   camH=null; Object.assign(SIM,{v:0,s:0,acc:0,wait:0,done:false});
 }
