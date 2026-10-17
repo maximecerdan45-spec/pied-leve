@@ -144,6 +144,15 @@ details.safe strong{color:var(--brake)}
 .ov h1 span{color:var(--go)}
 .ov h2{font-family:var(--f-display);font-size:20px;margin:6px 0 0}
 .ov p{margin:0;color:var(--muted)}
+.setup{display:flex;flex-direction:column;gap:10px}
+.srow{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border-radius:14px;padding:14px;box-shadow:inset 0 0 0 1px var(--line)}
+.srow .st{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:15px;background:var(--bg);box-shadow:inset 0 0 0 2px var(--line);color:var(--muted)}
+.srow.ok .st{background:var(--go);box-shadow:none;color:#fff}
+.srow .tx{flex:1;min-width:0}
+.srow b{display:block;font-size:16px;color:var(--ink)}
+.srow small{display:block;font-size:13px;color:var(--muted);margin-top:2px}
+.srow .tbtn{flex:none;align-self:center}
+.srow.ok .tbtn{display:none}
 .stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border-radius:12px;overflow:hidden}
 .stat{background:var(--surface);padding:10px 12px}
 .stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
@@ -175,7 +184,7 @@ textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;
       <button class="btn go" id="bReal">Rouler sans destination</button>
       <button class="btn ghost" id="bSim">Simulation</button>
     </div>
-    <div class="install" id="bubbleBox" hidden><span>Bulle avec les conseils par-dessus Waze</span><button class="tbtn" id="bBubble">Activer</button></div>
+    <div class="install" id="setupBox" hidden><span id="setupTxt">Réglages du téléphone</span><button class="tbtn" id="bSetup">Voir</button></div>
     <div class="install" id="installBox" hidden><span>Installer Pied Levé sur l’écran d’accueil</span><button class="tbtn" id="bInstall">Installer</button></div>
     <p class="fine" id="appVer"></p>
     <p class="fine" id="installHint" hidden>Pour l’installer : menu ⋮ de Chrome, puis « Installer l’application ».</p>
@@ -218,6 +227,15 @@ textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;
   </div>
 </div>
 
+<div class="ov" id="ovSetup" hidden>
+  <div class="in">
+    <h1>Préparer votre <span>téléphone</span></h1>
+    <p>Pour que Pied Levé vous conseille même quand Waze est devant, Android demande quelques autorisations. Touchez chaque bouton, autorisez, puis revenez ici.</p>
+    <div class="setup" id="setupList"></div>
+    <button class="btn go" id="bSetupDone">C’est prêt</button>
+    <p class="fine">Vous pourrez revenir ici depuis l’accueil : « Réglages du téléphone ».</p>
+  </div>
+</div>
 <div class="ov" id="ovEnd" hidden>
   <div class="in">
     <h1>Bilan du <span>trajet</span></h1>
@@ -724,27 +742,48 @@ async function bubbleReport(){ const B=PLUG.Bubble; if(!NATIVE||!B) return;
   try{ const r=await B.status(); logLine(`Bulle : autorisée ${r.granted?'oui':'non'}, appli quittée ${r.pauses} fois, bulle affichée ${r.shows} fois${r.lastError?`, erreur : ${r.lastError}`:''}`); add(); }catch(e){ logLine('Bulle : module injoignable ('+((e&&e.message)||e)+')'); add(); } }
 function bubbleShow(){ const B=PLUG.Bubble; if(!NATIVE||!B||!S.running||BUB.on) return; BUB.on=true; BUB.last=JSON.stringify(BUB.info); B.show(BUB.info).then(()=>logLine('Bulle affichée')).catch(e=>{ BUB.on=false; logLine('Bulle impossible : '+((e&&e.message)||e)); }); }
 function bubbleHide(){ const B=PLUG.Bubble; if(!B||!BUB.on) return; BUB.on=false; B.hide().catch(()=>{}); }
-// Au départ d'un trajet : proposer (au plus une fois par semaine) d'autoriser la bulle
-async function bubbleAsk(){
-  const B=PLUG.Bubble; if(!NATIVE||!B) return;
-  try{ if((await B.hasPermission()).granted) return;
-    let last=0; try{ last=+localStorage.getItem('pl-bubble-ask')||0; }catch(e){}
-    if(Date.now()-last<7*864e5) return; try{ localStorage.setItem('pl-bubble-ask',String(Date.now())); }catch(e){}
-    if(confirm('Afficher une bulle avec les conseils par-dessus Waze ?\n\nAndroid va ouvrir le réglage « Affichage par-dessus d’autres applis » : activez-le pour Pied Levé, puis revenez.')) await B.requestPermission();
-  }catch(e){}
-}
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) bubbleShow(); else { bubbleHide(); bubbleBoxRefresh(); } });
-// Accueil : bouton pour activer la bulle tant que l'autorisation Android manque
-async function bubbleBoxRefresh(){ const B=PLUG.Bubble; if(!NATIVE||!B) return; try{ $('bubbleBox').hidden=(await B.hasPermission()).granted; }catch(e){} }
-$('bBubble').onclick=()=>{ const B=PLUG.Bubble; if(B) B.requestPermission().catch(()=>{}); };
-bubbleBoxRefresh();
+/* ===== Préparer le téléphone (appli Android) =====
+   Liste des autorisations nécessaires, avec leur état et un bouton qui ouvre le bon réglage. */
+const SETUP=[
+  {k:'location',t:'Position',d:'Pour savoir où vous êtes et ce qui arrive devant vous.',b:'Autoriser'},
+  {k:'notifications',t:'Notifications',d:'Android exige la notification « Pied Levé en route » pour garder le GPS actif quand Waze est devant.',b:'Autoriser'},
+  {k:'overlay',t:'Bulle par-dessus les autres applis',d:'Pour voir les conseils dans une bulle quand Waze est devant. Activez « Superposition sur d’autres applis ».',b:'Ouvrir'},
+  {k:'battery',t:'Batterie sans restriction',d:'Pour qu’Android n’arrête pas Pied Levé pendant le trajet.',b:'Ouvrir'},
+  {k:'xiaomi',t:'Fenêtres pop-up (Xiaomi)',d:'Dans « Autres autorisations », autorisez « Afficher des fenêtres pop-up lors de l’exécution en arrière-plan », puis revenez et touchez « C’est fait ».',b:'Ouvrir',manual:true}];
+const SET={st:null,first:{},timer:null};
+const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } }, lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
+async function setupCheck(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.checkSetup) return null;
+  try{ const r=await B.checkSetup(); r.xiaomiNeeded=/xiaomi|redmi|poco/.test(r.maker||''); r.xiaomi=lsGet('pl-xiaomi-ok')==='1'; SET.st=r; return r; }catch(e){ return null; } }
+function setupItems(){ const r=SET.st; return r?SETUP.filter(i=>i.k!=='xiaomi'||r.xiaomiNeeded):[]; }
+function setupMissing(){ const r=SET.st; return r?setupItems().filter(i=>!r[i.k]).length:0; }
+function setupRender(){
+  const r=SET.st; if(!r) return; const list=$('setupList'); list.textContent='';
+  setupItems().forEach((it,n)=>{ const ok=!!r[it.k], row=document.createElement('div'); row.className='srow'+(ok?' ok':'');
+    row.innerHTML=`<div class="st">${ok?'✓':n+1}</div><div class="tx"><b></b><small></small></div><button class="tbtn" type="button"></button>`;
+    row.querySelector('b').textContent=it.t; row.querySelector('small').textContent=ok?'C’est fait.':it.d;
+    const bt=row.querySelector('button'); bt.textContent=it.manual&&SET.first[it.k]===false?'C’est fait':it.b;
+    bt.onclick=()=>{ if(it.manual&&SET.first[it.k]===false){ lsSet('pl-xiaomi-ok','1'); setupCheck().then(setupRender); return; }
+      PLUG.Bubble.openSetting({what:it.k,first:SET.first[it.k]!==false}).catch(()=>{}); SET.first[it.k]=false; setupRender(); };
+    list.append(row); });
+  const miss=setupMissing(); $('bSetupDone').textContent=miss?'Continuer sans tout autoriser':'C’est prêt';
+  $('setupTxt').textContent=miss?`Réglages du téléphone · ${miss} à faire`:'Réglages du téléphone · tout est prêt ✓';
+  $('setupBox').hidden=false;
+}
+function setupOpen(){ $('ovSetup').hidden=false; setupRender(); clearInterval(SET.timer);
+  SET.timer=setInterval(()=>{ if($('ovSetup').hidden){ clearInterval(SET.timer); return; } setupCheck().then(setupRender); },1000); }
+function setupClose(){ $('ovSetup').hidden=true; clearInterval(SET.timer); lsSet('pl-setup-seen','1'); setupCheck().then(setupRender); }
+$('bSetupDone').onclick=setupClose; $('bSetup').onclick=setupOpen;
+// Au lancement : l'écran s'ouvre tout seul la première fois, ou s'il manque la position
+setupCheck().then(r=>{ if(!r) return; setupRender(); if(lsGet('pl-setup-seen')!=='1'||!r.location) setupOpen(); });
+function bubbleBoxRefresh(){ setupCheck().then(setupRender); }
 // Quelle version tourne ? (affiché sur l'accueil et dans le journal, pour ne pas confondre appli web et appli Android)
 let APPVER='Version web';
 (async()=>{ if(NATIVE){ APPVER='Appli Android'; try{ const r=await fetch('./app-version.json',{cache:'no-store'}); const c=r.ok?(await r.json()).code:0; if(c) APPVER+=' · version '+c; }catch(e){} } $('appVer').textContent=APPVER; })();
 // Journal : état des modules Android, pour diagnostiquer à distance
 async function nativeReport(){ if(!NATIVE) return; const r=[];
   for(const [k,n] of [['TextToSpeech','voix'],['KeepAwake','écran allumé'],['BackgroundGeolocation','GPS arrière-plan'],['Bubble','bulle']]) r.push(`${n} ${PLUG[k]?'présent':'absent'}`);
-  try{ r.push('autorisation bulle '+((await PLUG.Bubble.hasPermission()).granted?'oui':'non')); }catch(e){ r.push('bulle injoignable ('+((e&&e.message)||e)+')'); }
+  try{ const st=await setupCheck(); if(st) r.push('réglages : '+setupItems().map(i=>`${i.t.toLowerCase()} ${st[i.k]?'oui':'non'}`).join(', ')+(st.maker?` (téléphone ${st.maker})`:'')); }catch(e){ r.push('réglages injoignables ('+((e&&e.message)||e)+')'); }
   logLine('Modules Android : '+r.join(', ')); }
 
 function updateCue(g){
@@ -1082,7 +1121,7 @@ function start(mode){
   logLine(`Démarrage (${mode==='sim'?'simulation':'route réelle'})`);
   if(PLAN) logLine(`Destination : ${PLAN.dest.name} (${nf(PLAN.distance/1000,1)} km, ${Math.round(PLAN.duration/60)} min estimées sans trafic)`);
   setMap('–'); setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert');
-  bubbleAsk(); nativeReport(); logLine(APPVER); bubbleArm(true);
+  nativeReport(); logLine(APPVER); bubbleArm(true);
   if(mode==='real'){ if(!startNativeGps()) S.watch=navigator.geolocation.watchPosition(onFix,onGeoErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
   else {
     const go=(lat,lon,src)=>{ SIM.lat=lat; SIM.lon=lon; logLine(`Simulation depuis ${src}`); simEmit(); };

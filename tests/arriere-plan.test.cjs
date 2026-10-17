@@ -42,18 +42,26 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
         update: o => { __log.bubble.push(['update', o.line1, o.line2]); return Promise.resolve(); },
         hide: () => { __log.bubble.push(['hide']); return Promise.resolve(); },
         arm: o => { __log.bubble.push(['arm', o.active]); return Promise.resolve(); },
-        status: () => Promise.resolve({ granted: true, pauses: 1, shows: 1, lastError: '' }) },
+        status: () => Promise.resolve({ granted: true, pauses: 1, shows: 1, lastError: '' }),
+        checkSetup: () => Promise.resolve({ location: true, notifications: true, battery: true, overlay: __log.askedPerm > 0, maker: window.__maker || 'samsung' }),
+        openSetting: o => { (__log.opened = __log.opened || []).push(o.what); if (o.what === 'overlay') __log.askedPerm++; return Promise.resolve(); } },
       KeepAwake: { keepAwake: () => { __log.awake++; return Promise.resolve(); }, allowSleep: () => Promise.resolve() } } };
     navigator.geolocation.watchPosition = () => { window.__webGps = true; return 1; };
   });
   let dialogs = 0; page.on('dialog', d => { dialogs++; d.accept(); });
-  await page.goto(url); await page.waitForTimeout(500);
+  await page.goto(url); await page.waitForTimeout(600);
+  check(await page.isVisible('#ovSetup'), 'premier lancement : l\'écran « Préparer votre téléphone » s\'ouvre');
+  check((await page.$$('#setupList .srow')).length === 4 && (await page.$$('#setupList .srow.ok')).length === 3, 'il liste 4 réglages (position, notifications, bulle, batterie), dont 3 déjà faits');
+  await page.click('#setupList .srow:not(.ok) .tbtn'); await page.waitForTimeout(1500);
+  check((await page.evaluate(() => __log.opened)).includes('overlay') && (await page.$$('#setupList .srow.ok')).length === 4, 'toucher « Ouvrir » ouvre le réglage de la bulle, puis la ligne passe en ✓ au retour');
+  check((await page.textContent('#bSetupDone')) === 'C’est prêt', 'tout est fait : le bouton devient « C’est prêt »');
+  await page.click('#bSetupDone'); await page.waitForTimeout(300);
+  check(!(await page.isVisible('#ovSetup')) && /tout est prêt/.test(await page.textContent('#setupTxt')), 'retour à l\'accueil : « Réglages du téléphone · tout est prêt ✓ »');
   await page.click('#bReal'); await page.waitForTimeout(300);
   const st = await page.evaluate(() => ({ w: __log.watchers, web: !!window.__webGps, awake: __log.awake }));
   check(st.w.length === 1 && !!st.w[0].backgroundMessage, 'le GPS passe par le module « arrière-plan » (avec notification)');
   check(!st.web, 'le GPS du navigateur n\'est pas utilisé dans l\'appli Android');
   check(st.awake === 1, 'l\'écran reste allumé via le module natif');
-  check(dialogs === 1 && (await page.evaluate(() => __log.askedPerm)) === 1, 'au départ : l\'appli propose d\'autoriser la bulle et ouvre le réglage Android');
 
   // Quelques positions au premier plan, puis l'appli passe derrière Waze
   const fix = s => { const y = Math.min(s, 1000); return { latitude: LAT0 + y * mLat, longitude: LON0, accuracy: 5, speed: V, bearing: 0, time: Date.now() }; };
@@ -95,16 +103,19 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
         update: o => { __log.bubble.push(['update', o.line1, o.line2]); return Promise.resolve(); },
         hide: () => { __log.bubble.push(['hide']); return Promise.resolve(); },
         arm: o => { __log.bubble.push(['arm', o.active]); return Promise.resolve(); },
-        status: () => Promise.resolve({ granted: true, pauses: 1, shows: 1, lastError: '' }) },
+        status: () => Promise.resolve({ granted: true, pauses: 1, shows: 1, lastError: '' }),
+        checkSetup: () => Promise.resolve({ location: true, notifications: true, battery: true, overlay: __log.askedPerm > 0, maker: window.__maker || 'samsung' }),
+        openSetting: o => { (__log.opened = __log.opened || []).push(o.what); if (o.what === 'overlay') __log.askedPerm++; return Promise.resolve(); } },
       TextToSpeech: { speak: () => Promise.resolve(), stop: () => Promise.resolve() },
       KeepAwake: { keepAwake: () => Promise.resolve(), allowSleep: () => Promise.resolve() } } };
     navigator.geolocation.getCurrentPosition = ok => ok({ coords: { latitude: LAT0 + 300 / 111320, longitude: LON0 } });
   }, { LAT0, LON0 });
-  let simDialogs = 0; sim.on('dialog', d => { simDialogs++; d.accept(); });
+  await sim.addInitScript(() => { window.__maker = 'xiaomi'; });
   await sim.goto(url); await sim.waitForTimeout(600);
-  check(await sim.isVisible('#bubbleBox'), 'accueil : bouton « Activer » la bulle tant qu\'elle n\'est pas autorisée');
+  check((await sim.$$('#setupList .srow')).length === 5, 'téléphone Xiaomi : une 5e ligne explique les fenêtres pop-up');
+  await sim.click('#bSetupDone'); await sim.waitForTimeout(300);
+  check(/2 à faire/.test(await sim.textContent('#setupTxt')), 'accueil : « Réglages du téléphone · 2 à faire » tant que ce n\'est pas fini');
   await sim.click('#bSim'); await sim.waitForTimeout(4000);
-  check(simDialogs === 1, 'simulation : l\'appli propose aussi d\'autoriser la bulle');
   // comme dans l'appli Android : aucun signal « page cachée », l'écran cesse simplement d'être redessiné
   await sim.evaluate(() => { window.requestAnimationFrame = () => 0; });
   await sim.waitForTimeout(6500);

@@ -1,6 +1,12 @@
 package app.piedleve;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.pm.PackageManager;
+import android.os.PowerManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
@@ -55,6 +61,100 @@ public class BubblePlugin extends Plugin {
 
     private boolean canDraw() {
         return Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(getContext());
+    }
+
+    /* ===== Préparation du téléphone : état des réglages nécessaires et accès direct à chacun ===== */
+
+    private boolean granted(String perm) {
+        return ContextCompat.checkSelfPermission(getContext(), perm) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @PluginMethod
+    public void checkSetup(PluginCall call) {
+        Context ctx = getContext();
+        JSObject r = new JSObject();
+        r.put("location", granted(Manifest.permission.ACCESS_FINE_LOCATION));
+        r.put("notifications", NotificationManagerCompat.from(ctx).areNotificationsEnabled()
+                && (Build.VERSION.SDK_INT < 33 || granted(Manifest.permission.POST_NOTIFICATIONS)));
+        r.put("overlay", canDraw());
+        boolean battery = true;
+        if (Build.VERSION.SDK_INT >= 23) {
+            PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+            battery = pm != null && pm.isIgnoringBatteryOptimizations(ctx.getPackageName());
+        }
+        r.put("battery", battery);
+        r.put("maker", Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase());
+        call.resolve(r);
+    }
+
+    /** Ouvre le bon écran pour un réglage. « first » : première tentative (fenêtre d'autorisation Android). */
+    @PluginMethod
+    public void openSetting(PluginCall call) {
+        String what = call.getString("what", "app");
+        boolean first = Boolean.TRUE.equals(call.getBoolean("first", true));
+        Context ctx = getContext();
+        String pkg = ctx.getPackageName();
+        try {
+            switch (what) {
+                case "location":
+                    if (first && getActivity() != null) {
+                        ActivityCompat.requestPermissions(getActivity(), new String[] { Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION }, 11);
+                        break;
+                    }
+                    openAppDetails();
+                    break;
+                case "notifications":
+                    if (first && Build.VERSION.SDK_INT >= 33 && getActivity() != null && !granted(Manifest.permission.POST_NOTIFICATIONS)) {
+                        ActivityCompat.requestPermissions(getActivity(), new String[] { Manifest.permission.POST_NOTIFICATIONS }, 12);
+                        break;
+                    }
+                    if (Build.VERSION.SDK_INT >= 26) {
+                        start(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, pkg));
+                    } else openAppDetails();
+                    break;
+                case "overlay":
+                    if (Build.VERSION.SDK_INT >= 23) start(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + pkg)));
+                    break;
+                case "battery":
+                    if (Build.VERSION.SDK_INT >= 23) {
+                        try {
+                            start(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + pkg)));
+                        } catch (Exception e) {
+                            start(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+                        }
+                    }
+                    break;
+                case "xiaomi":
+                    // Xiaomi : « Autres autorisations » (fenêtres pop-up en arrière-plan)
+                    try {
+                        Intent i = new Intent("miui.intent.action.APP_PERM_EDITOR");
+                        i.setClassName("com.miui.securitycenter", "com.miui.permcenter.permissions.PermissionsEditorActivity");
+                        i.putExtra("extra_pkgname", pkg);
+                        start(i);
+                    } catch (Exception e) {
+                        openAppDetails();
+                    }
+                    break;
+                default:
+                    openAppDetails();
+            }
+            call.resolve();
+        } catch (Exception e) {
+            try {
+                openAppDetails();
+            } catch (Exception ignored) {
+            }
+            call.resolve();
+        }
+    }
+
+    private void start(Intent i) {
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(i);
+    }
+
+    private void openAppDetails() {
+        start(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getContext().getPackageName())));
     }
 
     @PluginMethod
