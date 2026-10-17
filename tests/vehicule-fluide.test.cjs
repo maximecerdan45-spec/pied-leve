@@ -77,7 +77,7 @@ function serve() {
       const m = carEl && /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(carEl.style.transform || ''); // position de la voiture à l'écran
       const tr = __at(850 + __V * (t - __t0) / 1000), [ex, ey] = S.ref ? toXY(__LAT0 + tr[1] * __mLat, __LON0 + tr[0] * __mLon) : [0, 0]; // vraie position
       const L = S.liftShown; // repère « lever le pied ici » affiché (position sur la carte)
-      if (S.veh) __rec.push([t, S.veh.x, S.veh.y, S.veh.h, camH, Math.hypot(S.veh.x - ex, S.veh.y - ey), m ? +m[1] : null, m ? +m[2] : null, L ? L[0] : null, L ? L[1] : null]);
+      if (S.veh) __rec.push([t, S.veh.x, S.veh.y, S.veh.h, camH, Math.hypot(S.veh.x - ex, S.veh.y - ey), m ? +m[1] : null, m ? +m[2] : null, L ? L[0] : null, L ? L[1] : null, S.zoneShown ? S.zoneShown[0][0] : null, S.zoneShown ? S.zoneShown[0][1] : null, S.zoneShown ? S.zoneShown[1][0] : null, S.zoneShown ? S.zoneShown[1][1] : null]);
       else if (S.dispXY && S.path) { // ancienne version : position affichée + cap du tronçon
         const off = (S.advOff || 0) * Math.max(0, 1 - (t - (S.advOffT || 0)) / 900);
         const adv = Math.max(0, Math.min(40, Math.max(0, S.v * (t - S.fixT) / 1000)) + off);
@@ -122,9 +122,16 @@ function serve() {
   let liftJump = 0, liftN = 0, liftMin = [Infinity, Infinity], liftMax = [-Infinity, -Infinity];
   for (let i = 1; i < s.length; i++) if (s[i][8] != null && s[i - 1][8] != null) { liftN++; liftJump = Math.max(liftJump, Math.hypot(s[i][8] - s[i - 1][8], s[i][9] - s[i - 1][9]));
     liftMin = [Math.min(liftMin[0], s[i][8]), Math.min(liftMin[1], s[i][9])]; liftMax = [Math.max(liftMax[0], s[i][8]), Math.max(liftMax[1], s[i][9])]; }
+  // l'étiquette ne doit pas clignoter (apparaître / disparaître), la zone orange ne doit ni s'allonger ni se raccourcir
+  let blinks = 0, zoneJump = 0, zoneN = 0, zoneBlinks = 0;
+  for (let i = 1; i < s.length; i++) {
+    if ((s[i][8] == null) !== (s[i - 1][8] == null)) blinks++;
+    if ((s[i][10] == null) !== (s[i - 1][10] == null)) zoneBlinks++;
+    if (s[i][10] != null && s[i - 1][10] != null) { zoneN++; zoneJump = Math.max(zoneJump, Math.hypot(s[i][10] - s[i - 1][10], s[i][11] - s[i - 1][11]), Math.hypot(s[i][12] - s[i - 1][12], s[i][13] - s[i - 1][13])); } }
+  console.log(`Étiquette : ${blinks} apparition(s)/disparition(s) · zone orange : affichée ${zoneN} images, ${zoneBlinks} apparition(s)/disparition(s), plus grand changement de longueur ${zoneJump.toFixed(2)} m`);
   const liftSpan = liftN ? Math.hypot(liftMax[0] - liftMin[0], liftMax[1] - liftMin[1]) : 0;
   console.log(liftN ? `Repère « lever le pied ici » : affiché ${liftN} images, plus grand saut ${liftJump.toFixed(2)} m, déplacement total ${liftSpan.toFixed(1)} m` : 'Repère « lever le pied ici » : jamais affiché');
-  const ok = liftN > 30 && liftJump < 0.5 && liftSpan < 3 && maxStep < 1 && vLo > V * 3.6 * 0.75 && vHi < V * 3.6 * 1.25 && maxAcc < 4 && maxTurn < 2 && maxCam < 1 && gapMax < 20 && (!ML || scr < 0.1);
+  const ok = liftN > 30 && liftJump < 0.5 && liftSpan < 3 && blinks <= 2 && zoneN > 30 && zoneBlinks <= 2 && zoneJump < 0.5 && maxStep < 1 && vLo > V * 3.6 * 0.75 && vHi < V * 3.6 * 1.25 && maxAcc < 4 && maxTurn < 2 && maxCam < 1 && gapMax < 20 && (!ML || scr < 0.1);
   const bad = [[maxStep < 1, 'saut de position'], [vLo > V * 3.6 * 0.75 && vHi < V * 3.6 * 1.25, 'vitesse affichée'], [maxAcc < 4, 'variation de vitesse'],
     [maxTurn < 2, 'rotation du véhicule'], [maxCam < 1, 'rotation de la caméra'], [gapMax < 20, 'écart avec la vraie position'], [!ML || scr < 0.1, 'voiture qui bouge à l\'écran']].filter(c => !c[0]).map(c => c[1]);
   console.log(ok ? 'RÉUSSI : le véhicule avance de façon régulière, sans tremblement' : `ÉCHEC : le véhicule tremble ou avance par à-coups (critère en échec : ${bad.join(', ')})`);
