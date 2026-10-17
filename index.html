@@ -241,6 +241,8 @@ textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;
 <script>
 (() => {
 "use strict";
+/* Appli Android (Capacitor) : modules natifs pour la voix et l'écran allumé */
+const CAP=window.Capacitor, NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform()), PLUG=NATIVE?(CAP.Plugins||{}):{};
 /* ===== Modèle véhicule ===== */
 const M=1250,G=9.81,CRR=0.011,RHO=1.2,CDA=0.62,EB=0.32,KMH=3.6,LOOK=1500,ETA=0.27,EF=32e6,BASE=0.00015,IDLE=0.00017,PRICE=1.80;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
@@ -712,7 +714,9 @@ function updateCue(g){
 /* ===== Son et voix ===== */
 let actx=null, voiceOn=true;
 function beep(f,n){ if(!voiceOn||!actx) return; try{ for(let k=0;k<n;k++){ const o=actx.createOscillator(),gn=actx.createGain(),t=actx.currentTime+k*0.18; o.frequency.value=f; gn.gain.setValueAtTime(0.0001,t); gn.gain.exponentialRampToValueAtTime(0.3,t+0.02); gn.gain.exponentialRampToValueAtTime(0.0001,t+0.14); o.connect(gn).connect(actx.destination); o.start(t); o.stop(t+0.16); } }catch(e){} }
-function say(txt){ if(!voiceOn||!('speechSynthesis' in window)) return; const now=performance.now(); if(now-S.lastSay<2500) return; S.lastSay=now; try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(txt); u.lang='fr-FR'; u.rate=1.05; setTimeout(()=>speechSynthesis.speak(u),350); }catch(e){} }
+function speakNative(txt){ const T=PLUG.TextToSpeech; if(!T) return false; T.stop().catch(()=>{}).finally(()=>T.speak({text:txt,lang:'fr-FR',rate:1.05,category:'playback'}).catch(()=>{})); return true; }
+function say(txt){ if(!voiceOn) return; if(NATIVE&&PLUG.TextToSpeech){ const now=performance.now(); if(now-S.lastSay<2500) return; S.lastSay=now; speakNative(txt); return; }
+  if(!('speechSynthesis' in window)) return; const now=performance.now(); if(now-S.lastSay<2500) return; S.lastSay=now; try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(txt); u.lang='fr-FR'; u.rate=1.05; setTimeout(()=>speechSynthesis.speak(u),350); }catch(e){} }
 $('bSound').onclick=()=>{ voiceOn=!voiceOn; const b=$('bSound'); b.setAttribute('aria-pressed',String(voiceOn)); b.setAttribute('aria-label',voiceOn?'Couper la voix':'Activer la voix'); b.classList.toggle('muted',!voiceOn); $('snd2').style.display=voiceOn?'':'none'; };
 
 /* ===== Affichage ===== */
@@ -982,9 +986,9 @@ requestAnimationFrame(frame);
 
 /* ===== Démarrage / fin ===== */
 let wake=null;
-async function keepAwake(){ try{ if('wakeLock' in navigator) wake=await navigator.wakeLock.request('screen'); }catch(e){} }
+async function keepAwake(){ try{ if(NATIVE&&PLUG.KeepAwake){ await PLUG.KeepAwake.keepAwake(); return; } if('wakeLock' in navigator) wake=await navigator.wakeLock.request('screen'); }catch(e){} }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.running) keepAwake(); else if(S.running) logLine('Page passée en arrière-plan'); });
-function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} try{ const u=new SpeechSynthesisUtterance('Pied Levé est prêt.'); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
+function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative('Pied Levé est prêt.'); return; } try{ const u=new SpeechSynthesisUtterance('Pied Levé est prêt.'); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
 function reset(){
   Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},vS:null,veh:null,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
   $('hEco').textContent='0,00 L'; $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
@@ -1007,7 +1011,7 @@ function start(mode){
 function end(){
   if(!S.running) return; S.running=false;
   if(S.watch!=null){ navigator.geolocation.clearWatch(S.watch); S.watch=null; }
-  try{ wake&&wake.release(); }catch(e){}
+  try{ wake&&wake.release(); }catch(e){} try{ if(NATIVE&&PLUG.KeepAwake) PLUG.KeepAwake.allowSleep(); }catch(e){}
   const L=S.log, dur=(Date.now()-L.t0)/1000;
   $('eDist').textContent=`${nf(L.dist/1000,1)} km`;
   $('eTime').textContent=`${Math.floor(dur/60)} min ${String(Math.round(dur%60)).padStart(2,'0')}`;
@@ -1049,7 +1053,7 @@ function applyUpdate(){
     b.onclick=()=>{ if(!S.running) location.reload(); }; document.body.append(b); }
   else $('updBtn').textContent=S.running?'Nouvelle version prête : elle s’installera à la fin du trajet':'Nouvelle version : toucher pour mettre à jour';
 }
-if(location.protocol!=='file:'){ checkUpdate(); setInterval(checkUpdate,180000);
+if(location.protocol!=='file:'&&!NATIVE){ checkUpdate(); setInterval(checkUpdate,180000);
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') checkUpdate(); });
   addEventListener('online',checkUpdate); }
 $('bCopy').onclick=async()=>{ const ta=$('eLog'); try{ await navigator.clipboard.writeText(ta.value); $('bCopy').textContent='Journal copié'; }catch(e){ ta.focus(); ta.select(); $('bCopy').textContent='Sélectionné : copiez-le'; } setTimeout(()=>$('bCopy').textContent='Copier le journal',2500); };
@@ -1057,11 +1061,11 @@ addEventListener('resize',()=>{ dpr=Math.min(2,window.devicePixelRatio||1); });
 /* ===== Appli installable ===== */
 const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
 let installEvt=null;
-if(!standalone){ $('installHint').hidden=false; }
+if(!standalone&&!NATIVE){ $('installHint').hidden=false; }
 addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt=e; $('installBox').hidden=false; $('installHint').hidden=true; });
 $('bInstall').onclick=async()=>{ if(!installEvt) return; installEvt.prompt(); try{ const r=await installEvt.userChoice; if(r.outcome==='accepted'){ $('installBox').hidden=true; } }catch(e){} installEvt=null; };
 addEventListener('appinstalled',()=>{ $('installBox').hidden=true; $('installHint').hidden=true; });
-if('serviceWorker' in navigator&&location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+if(!NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 })();
 </script>
 </body>
