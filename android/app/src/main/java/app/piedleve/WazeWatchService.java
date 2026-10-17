@@ -175,7 +175,7 @@ public class WazeWatchService extends Service {
         final long launchAt = now;
         Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (i == null) return;
-        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
         i.putExtra("autostart", true);
         try {
             startActivity(i);
@@ -205,7 +205,7 @@ public class WazeWatchService extends Service {
         }
         Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (open == null) return;
-        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
         open.putExtra("autostart", true);
         PendingIntent pi = PendingIntent.getActivity(this, 1, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         Notification n = new NotificationCompat.Builder(this, CHANNEL_START)
