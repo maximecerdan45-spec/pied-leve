@@ -54,6 +54,8 @@ public class BubblePlugin extends Plugin {
     static volatile boolean tripActive = false;
     // Appli ouverte par la veille « Waze » : la page doit lancer un trajet
     static volatile boolean autostartPending = false;
+    // Dernier passage de Pied Levé au premier plan (la veille vérifie que l'ouverture a bien eu lieu)
+    static volatile long lastResumeAt = 0;
     private static BubblePlugin instance;
 
     @Override
@@ -94,6 +96,7 @@ public class BubblePlugin extends Plugin {
         r.put("ago", WazeWatchService.lastTick == 0 ? -1 : (System.currentTimeMillis() - WazeWatchService.lastTick) / 1000);
         r.put("foreground", WazeWatchService.lastForeground);
         r.put("launches", WazeWatchService.launches);
+        r.put("wazeAgo", WazeWatchService.lastWazeSeen == 0 ? -1 : (System.currentTimeMillis() - WazeWatchService.lastWazeSeen) / 1000);
         r.put("lastError", WazeWatchService.lastError);
         call.resolve(r);
     }
@@ -256,6 +259,11 @@ public class BubblePlugin extends Plugin {
     public void arm(PluginCall call) {
         armed = Boolean.TRUE.equals(call.getBoolean("active", false));
         tripActive = armed;
+        if (armed) {
+            // trajet lancé : la notification « Waze est ouvert » n'a plus lieu d'être
+            android.app.NotificationManager nm = (android.app.NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(WazeWatchService.START_NOTIF_ID);
+        }
         readInfo(call);
         if (!armed) main.post(this::remove);
         call.resolve();
@@ -307,6 +315,7 @@ public class BubblePlugin extends Plugin {
     // Retour dans l'appli : la bulle disparaît
     @Override
     protected void handleOnResume() {
+        lastResumeAt = System.currentTimeMillis();
         main.post(this::remove);
     }
 
