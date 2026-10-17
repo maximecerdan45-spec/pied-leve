@@ -759,16 +759,17 @@ const SETUP=[
   {k:'overlay',t:'Bulle par-dessus les autres applis',d:'Pour voir les conseils dans une bulle quand Waze est devant. Activez « Superposition sur d’autres applis ».',b:'Ouvrir'},
   {k:'battery',t:'Batterie sans restriction',d:'Pour qu’Android n’arrête pas Pied Levé pendant le trajet.',b:'Ouvrir'},
   {k:'autostart',t:'Démarrer tout seul avec Waze',d:'Facultatif. Le trajet se lance dès que vous ouvrez Waze, sans ouvrir Pied Levé. Autorisez « Accès aux données d’utilisation » pour Pied Levé, puis revenez et touchez « Activer ».',b:'Activer',optional:true},
+  {k:'xiaomiAuto',t:'Démarrage automatique et cadenas (Xiaomi)',d:'Pour que « Démarrer tout seul avec Waze » marche même quand Pied Levé est fermé : activez « Démarrage automatique » pour Pied Levé. Puis, dans les applis récentes (bouton carré), appuyez longuement sur Pied Levé et touchez le cadenas. Revenez ensuite et touchez « C’est fait ».',b:'Ouvrir',manual:true,optional:true},
   {k:'xiaomi',t:'Fenêtres pop-up (Xiaomi)',d:'Dans « Autres autorisations », autorisez « Afficher des fenêtres pop-up lors de l’exécution en arrière-plan », puis revenez et touchez « C’est fait ».',b:'Ouvrir',manual:true}];
 const SET={st:null,first:{},timer:null};
 const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } }, lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
 async function setupCheck(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.checkSetup) return null;
-  try{ const r=await B.checkSetup(); try{ if(B.watchStatus) r.watch=await B.watchStatus(); }catch(e){} r.xiaomiNeeded=/xiaomi|redmi|poco/.test(r.maker||''); r.xiaomi=lsGet('pl-xiaomi-ok')==='1'; SET.st=r; return r; }catch(e){ return null; } }
+  try{ const r=await B.checkSetup(); try{ if(B.watchStatus) r.watch=await B.watchStatus(); }catch(e){} r.xiaomiNeeded=/xiaomi|redmi|poco/.test(r.maker||''); r.xiaomi=lsGet('pl-xiaomi-ok')==='1'; r.xiaomiAuto=lsGet('pl-xiaomi-auto-ok')==='1'; SET.st=r; return r; }catch(e){ return null; } }
 function watchTxt(w){ if(!w) return ''; const p=[w.running?'veille en marche':'veille arrêtée'];
   p.push(w.wazeAgo>=0?`Waze vu il y a ${w.wazeAgo<120?w.wazeAgo+' s':Math.round(w.wazeAgo/60)+' min'}`:'Waze pas encore vu');
   p.push(`${w.launches} démarrage${w.launches>1?'s':''}`); if(w.lastError) p.push(w.lastError);
   return ` (${p.join(' · ')})`; }
-function setupItems(){ const r=SET.st; return r?SETUP.filter(i=>(i.k!=='xiaomi'||r.xiaomiNeeded)&&(i.k!=='autostart'||r.waze)):[]; }
+function setupItems(){ const r=SET.st; return r?SETUP.filter(i=>(i.k!=='xiaomi'||r.xiaomiNeeded)&&(i.k!=='autostart'||r.waze)&&(i.k!=='xiaomiAuto'||(r.xiaomiNeeded&&r.autostart))):[]; }
 function setupMissing(){ const r=SET.st; return r?setupItems().filter(i=>!i.optional&&!r[i.k]).length:0; }
 function setupRender(){
   const r=SET.st; if(!r) return; const list=$('setupList'); list.textContent='';
@@ -777,7 +778,7 @@ function setupRender(){
     row.querySelector('b').textContent=it.t; row.querySelector('small').textContent=ok?(it.k==='autostart'?(r.watch&&!r.watch.running?'Activé, mais la veille ne tourne pas : touchez « Couper » puis « Activer ». Sur Xiaomi, autorisez aussi « Démarrage automatique » pour Pied Levé.':`Activé : le trajet démarre quand Waze s’ouvre.${watchTxt(r.watch)}`):'C’est fait.'):it.d;
     const bt=row.querySelector('button'); bt.textContent=it.manual&&SET.first[it.k]===false?'C’est fait':it.b;
     if(it.k==='autostart'){ if(ok){ bt.textContent='Couper'; bt.style.display='block'; } else if(!r.usage) bt.textContent='Ouvrir'; }
-    bt.onclick=()=>{ if(it.manual&&SET.first[it.k]===false){ lsSet('pl-xiaomi-ok','1'); setupCheck().then(setupRender); return; }
+    bt.onclick=()=>{ if(it.manual&&SET.first[it.k]===false){ lsSet(it.k==='xiaomiAuto'?'pl-xiaomi-auto-ok':'pl-xiaomi-ok','1'); setupCheck().then(setupRender); return; }
       if(it.k==='autostart'){ const B=PLUG.Bubble; if(ok) B.setAutoStart({on:false}).catch(()=>{}).finally(()=>setupCheck().then(setupRender));
         else if(!r.usage) B.openSetting({what:'usage'}).catch(()=>{}); else B.setAutoStart({on:true}).catch(()=>{}).finally(()=>setupCheck().then(setupRender)); return; }
       PLUG.Bubble.openSetting({what:it.k,first:SET.first[it.k]!==false}).catch(()=>{}); SET.first[it.k]=false; setupRender(); };

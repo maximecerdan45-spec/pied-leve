@@ -8,7 +8,9 @@ import android.content.Intent;
 public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction()) && WazeWatchService.isOn(context)) {
+        String a = intent.getAction();
+        // Après un redémarrage du téléphone ou une mise à jour de l'appli
+        if ((Intent.ACTION_BOOT_COMPLETED.equals(a) || Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)) && WazeWatchService.isOn(context)) {
             try {
                 WazeWatchService.setOn(context, true);
             } catch (Exception ignored) {

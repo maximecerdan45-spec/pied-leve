@@ -150,6 +150,18 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   await auto.addInitScript(() => { try { localStorage.setItem('pl-setup-seen', '1'); } catch (e) {} });
   await auto.goto(url); await auto.waitForTimeout(600);
   check(!(await auto.isVisible('#drive')), 'démarrage auto : rien ne se passe tant que Waze n\'est pas ouvert');
+  const xa = await browser.newPage();
+  await xa.route('**/*', r => r.request().url().startsWith(url) ? r.continue() : r.abort());
+  await xa.addInitScript(() => { window.Capacitor = { isNativePlatform: () => true, Plugins: { Bubble: {
+    checkSetup: () => Promise.resolve({ location: true, notifications: true, battery: true, overlay: true, maker: 'xiaomi', waze: true, usage: true, autostart: true }),
+    watchStatus: () => Promise.resolve({ running: true, wazeAgo: -1, launches: 0, lastError: '' }), openSetting: o => { window.__opened = o.what; return Promise.resolve(); },
+    addListener: () => Promise.resolve({ remove() {} }), consumeAutostart: () => Promise.resolve({ pending: false }), arm: () => Promise.resolve(), update: () => Promise.resolve() } } }; });
+  await xa.goto(url); await xa.waitForTimeout(700);
+  const xRows = await xa.$$eval('#setupList .srow b', bs => bs.map(b => b.textContent));
+  check(xRows.includes('Démarrage automatique et cadenas (Xiaomi)'), 'Xiaomi + démarrage avec Waze activé : ligne « Démarrage automatique et cadenas »');
+  await xa.click('#setupList .srow:has-text("cadenas") .tbtn'); await xa.waitForTimeout(200);
+  check((await xa.evaluate(() => window.__opened)) === 'xiaomiAuto' && /· 1 à faire/.test(await xa.textContent('#setupTxt')), 'son bouton ouvre le réglage Xiaomi, et elle reste facultative (seules les fenêtres pop-up restent « à faire »)');
+  await xa.close();
   await auto.evaluate(() => { window.__autoPending = true; window.__listeners.autostart(); }); await auto.waitForTimeout(2200);
   const au = await auto.evaluate(() => ({ drive: !document.getElementById('drive').hidden, gps: __log.watchers.length, back: __log.toBack || 0 }));
   check(au.drive && au.gps === 1, 'Waze s\'ouvre : le trajet démarre tout seul (GPS en arrière-plan lancé)');
