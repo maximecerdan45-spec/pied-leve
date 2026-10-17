@@ -50,6 +50,10 @@ public class BubblePlugin extends Plugin {
     private WindowManager.LayoutParams lp;
     private android.widget.FrameLayout bubble;
     private LinearLayout card;
+    // Jauge d'approche : la carte se remplit d'orange jusqu'au moment de lever le pied
+    private android.graphics.drawable.ClipDrawable fill;
+    private float progress = -1f;
+    private int curLevel = 0;
     private BubbleIcon icon;
     private int curColor = 0;
     private String curIcon = "";
@@ -301,6 +305,8 @@ public class BubblePlugin extends Plugin {
         text1 = call.getString("line1", text1);
         text2 = call.getString("line2", text2);
         iconKind = call.getString("icon", iconKind);
+        Double p = call.getDouble("progress");
+        progress = p == null ? -1f : p.floatValue();
     }
 
     /** Début / fin de trajet : la bulle s'affichera d'elle-même quand l'appli passe derrière. */
@@ -439,6 +445,14 @@ public class BubblePlugin extends Plugin {
             icon.setKind(iconKind);
         }
         curColor = c;
+        int lvl = progress < 0 ? 0 : Math.round(Math.max(0f, Math.min(1f, progress)) * 10000);
+        if (lvl != curLevel) {
+            android.animation.ValueAnimator fa = android.animation.ValueAnimator.ofInt(curLevel, lvl);
+            fa.setDuration(lvl == 0 ? 120 : 300);
+            fa.addUpdateListener(a -> fill.setLevel((int) a.getAnimatedValue()));
+            fa.start();
+            curLevel = lvl;
+        }
         line1.setText(l1);
         line2.setText(l2);
         line2.setVisibility(l2 == null || l2.isEmpty() ? View.GONE : View.VISIBLE);
@@ -522,7 +536,12 @@ public class BubblePlugin extends Plugin {
         card.setPadding(dp(8), dp(8), dp(16), dp(8));
         shape = new GradientDrawable();
         shape.setCornerRadius(dp(26));
-        card.setBackground(shape);
+        GradientDrawable fillShape = new GradientDrawable();
+        fillShape.setCornerRadius(dp(26));
+        fillShape.setColor(0xFFA85E05);
+        fill = new android.graphics.drawable.ClipDrawable(fillShape, Gravity.START, android.graphics.drawable.ClipDrawable.HORIZONTAL);
+        fill.setLevel(0);
+        card.setBackground(new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[] { shape, fill }));
         card.setElevation(dp(6));
 
         icon = new BubbleIcon(ctx);
