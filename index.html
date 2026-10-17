@@ -87,7 +87,8 @@ details.safe strong{color:var(--brake)}
 .msg{margin:0;font-size:13px;color:var(--brake)}
 .install{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
 .install .tbtn{flex:none}
-.upd{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(104px + env(safe-area-inset-bottom));z-index:60;background:var(--ink);color:var(--surface);border:0;border-radius:999px;padding:10px 16px;font:600 14px/1.2 Barlow,system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.upd{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(104px + env(safe-area-inset-bottom));z-index:60;background:var(--ink);color:var(--surface);border:0;border-radius:999px;padding:10px 16px;font:600 14px/1.2 Barlow,system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:calc(100% - 32px)}
+.upd.inline{position:static;transform:none;display:block;width:100%;max-width:none;margin:0 0 12px;box-shadow:none}
 
 /* ---- conduite ---- */
 #drive{position:fixed;inset:0;z-index:3;pointer-events:none}
@@ -1028,7 +1029,7 @@ function end(){
   $('ovEnd').hidden=false; applyUpdate();
 }
 $('bReal').onclick=()=>start('real'); $('bSim').onclick=()=>start('sim');
-$('bEnd').onclick=end; $('bAgain').onclick=()=>{ if(UPD.ready){ location.reload(); return; } $('ovEnd').hidden=true; $('drive').hidden=true; $('ovStart').hidden=false; glHome(); };
+$('bEnd').onclick=end; $('bAgain').onclick=()=>{ if(UPD.ready&&!NATIVE){ location.reload(); return; } $('ovEnd').hidden=true; $('drive').hidden=true; $('ovStart').hidden=false; glHome(); applyUpdate(); };
 
 /* ===== Mise à jour automatique =====
    À l'ouverture, au retour dans l'appli et toutes les 3 minutes, on compare la page en ligne
@@ -1045,17 +1046,37 @@ async function checkUpdate(){
     if(sig!==UPD.sig){ UPD.ready=true; applyUpdate(); }
   }catch(e){} finally{ UPD.busy=false; }
 }
+// Appli Android : compare son numéro de version avec la dernière version publiée sur GitHub
+const APK_URL='https://github.com/maximecerdan45-spec/pied-leve/releases/download/android-latest/PiedLeve.apk';
+const APK_API='https://api.github.com/repos/maximecerdan45-spec/pied-leve/releases/tags/android-latest';
+async function checkApk(){
+  if(UPD.busy||!navigator.onLine) return; UPD.busy=true;
+  try{
+    if(UPD.mine==null){ const r=await fetch('./app-version.json',{cache:'no-store'}); UPD.mine=r.ok?((await r.json()).code|0):0; }
+    if(!UPD.mine) return; // version fabriquée à la main : pas de comparaison possible
+    const r=await fetch(APK_API,{cache:'no-store',headers:{Accept:'application/vnd.github+json'}}); if(!r.ok) return;
+    const j=await r.json(), m=/version (\d+)/.exec(j.name||''), latest=m?+m[1]:0;
+    if(latest>UPD.mine){ UPD.ready=true; UPD.apk=((j.assets||[]).find(a=>a.name==='PiedLeve.apk')||{}).browser_download_url||APK_URL; applyUpdate(); }
+  }catch(e){} finally{ UPD.busy=false; }
+}
+function updBtn(txt,onTap){ let b=$('updBtn'); if(!b){ b=document.createElement('button'); b.id='updBtn'; b.className='upd'; b.type='button'; document.body.append(b); } b.textContent=txt; b.onclick=onTap;
+  // sur l'accueil : dans le panneau du bas, pour ne cacher ni la recherche ni les boutons
+  const home=!S.running&&$('ovEnd').hidden, sheet=document.querySelector('#ovStart .sheet');
+  b.classList.toggle('inline',home); if(home){ if(b.parentNode!==sheet) sheet.insertBefore(b,sheet.querySelector('.brand')); } else if(b.parentNode!==document.body) document.body.append(b); }
 function applyUpdate(){
   if(!UPD.ready) return;
+  if(NATIVE){ // l'appli Android ne se recharge pas : on propose de télécharger la nouvelle version
+    updBtn(S.running?'Nouvelle version de l’appli : à installer après le trajet':'Nouvelle version de l’appli : toucher pour l’installer',()=>{ if(!S.running) location.href=UPD.apk||APK_URL; });
+    return; }
   if(!S.running&&$('ovEnd').hidden&&!PLAN&&!$('qDest').value){ location.reload(); return; }
-  if(!$('updBtn')){ const b=document.createElement('button'); b.id='updBtn'; b.className='upd'; b.type='button';
-    b.textContent=S.running?'Nouvelle version prête : elle s’installera à la fin du trajet':'Nouvelle version : toucher pour mettre à jour';
-    b.onclick=()=>{ if(!S.running) location.reload(); }; document.body.append(b); }
-  else $('updBtn').textContent=S.running?'Nouvelle version prête : elle s’installera à la fin du trajet':'Nouvelle version : toucher pour mettre à jour';
+  updBtn(S.running?'Nouvelle version prête : elle s’installera à la fin du trajet':'Nouvelle version : toucher pour mettre à jour',()=>{ if(!S.running) location.reload(); });
 }
 if(location.protocol!=='file:'&&!NATIVE){ checkUpdate(); setInterval(checkUpdate,180000);
   document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') checkUpdate(); });
   addEventListener('online',checkUpdate); }
+if(NATIVE){ checkApk(); setInterval(checkApk,1800000);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') checkApk(); });
+  addEventListener('online',checkApk); }
 $('bCopy').onclick=async()=>{ const ta=$('eLog'); try{ await navigator.clipboard.writeText(ta.value); $('bCopy').textContent='Journal copié'; }catch(e){ ta.focus(); ta.select(); $('bCopy').textContent='Sélectionné : copiez-le'; } setTimeout(()=>$('bCopy').textContent='Copier le journal',2500); };
 addEventListener('resize',()=>{ dpr=Math.min(2,window.devicePixelRatio||1); });
 /* ===== Appli installable ===== */
