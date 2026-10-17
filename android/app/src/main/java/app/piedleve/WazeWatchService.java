@@ -172,10 +172,6 @@ public class WazeWatchService extends Service {
         // On ne réagit qu'au moment où Waze passe devant (quelle que soit l'appli d'avant, Pied Levé compris)
         if (!arrived) return;
         if (BubblePlugin.tripActive) return; // trajet déjà en cours (cas normal après un démarrage automatique)
-        if (now - BubblePlugin.lastManualEnd < 120000) {
-            lastError = "Waze revenu devant juste après un trajet terminé à la main : pas de relance";
-            return;
-        }
         final long launchAt = now;
         Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (i == null) return;

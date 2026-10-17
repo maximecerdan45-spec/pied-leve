@@ -363,6 +363,9 @@ public class BubblePlugin extends Plugin {
 
     @Override
     protected void handleOnDestroy() {
+        // Appli fermée (retirée des applis récentes…) : le trajet est fini, la veille pourra en relancer un
+        armed = false;
+        tripActive = false;
         main.post(this::remove);
     }
 
