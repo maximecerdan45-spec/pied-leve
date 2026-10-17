@@ -42,6 +42,12 @@ public class BubblePlugin extends Plugin {
     private TextView line2;
     private GradientDrawable shape;
     private boolean shown = false;
+    // Trajet en cours : la bulle s'affiche d'elle-même quand l'appli passe en arrière-plan
+    private boolean armed = false;
+    private String color = "#5A6560", text1 = "PIED LEVÉ", text2 = "";
+    // Compte rendu pour le journal de l'appli
+    private int pauses = 0, shows = 0;
+    private String lastError = "";
 
     private int dp(float v) {
         return Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getContext().getResources().getDisplayMetrics()));
@@ -68,39 +74,83 @@ public class BubblePlugin extends Plugin {
         call.resolve();
     }
 
+    private void readInfo(PluginCall call) {
+        color = call.getString("color", color);
+        text1 = call.getString("line1", text1);
+        text2 = call.getString("line2", text2);
+    }
+
+    /** Début / fin de trajet : la bulle s'affichera d'elle-même quand l'appli passe derrière. */
+    @PluginMethod
+    public void arm(PluginCall call) {
+        armed = Boolean.TRUE.equals(call.getBoolean("active", false));
+        readInfo(call);
+        if (!armed) main.post(this::remove);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void status(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("granted", canDraw());
+        r.put("armed", armed);
+        r.put("shown", shown);
+        r.put("pauses", pauses);
+        r.put("shows", shows);
+        r.put("lastError", lastError);
+        call.resolve(r);
+    }
+
     @PluginMethod
     public void show(PluginCall call) {
+        readInfo(call);
         if (!canDraw()) {
+            lastError = "autorisation manquante";
             call.reject("Autorisation « affichage par-dessus d'autres applis » manquante", "NOT_AUTHORIZED");
             return;
         }
-        final String color = call.getString("color", "#24965C");
-        final String l1 = call.getString("line1", "");
-        final String l2 = call.getString("line2", "");
-        main.post(() -> {
-            try {
-                if (bubble == null) build();
-                apply(color, l1, l2);
-                if (!shown) {
-                    wm.addView(bubble, lp);
-                    shown = true;
-                }
-            } catch (Exception e) {
-                shown = false;
-            }
-        });
+        main.post(this::display);
         call.resolve();
     }
 
     @PluginMethod
     public void update(PluginCall call) {
-        final String color = call.getString("color", "#24965C");
-        final String l1 = call.getString("line1", "");
-        final String l2 = call.getString("line2", "");
+        readInfo(call);
         main.post(() -> {
-            if (bubble != null) apply(color, l1, l2);
+            if (bubble != null) apply(color, text1, text2);
         });
         call.resolve();
+    }
+
+    // L'appli passe derrière (Waze, écran d'accueil…) : on affiche la bulle si un trajet est en cours
+    @Override
+    protected void handleOnPause() {
+        pauses++;
+        if (armed) {
+            if (canDraw()) main.post(this::display);
+            else lastError = "autorisation manquante";
+        }
+    }
+
+    // Retour dans l'appli : la bulle disparaît
+    @Override
+    protected void handleOnResume() {
+        main.post(this::remove);
+    }
+
+    private void display() {
+        try {
+            if (bubble == null) build();
+            apply(color, text1, text2);
+            if (!shown) {
+                wm.addView(bubble, lp);
+                shown = true;
+                shows++;
+            }
+        } catch (Exception e) {
+            shown = false;
+            lastError = String.valueOf(e.getMessage());
+        }
     }
 
     @PluginMethod
