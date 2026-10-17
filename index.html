@@ -205,7 +205,13 @@ details.mrow ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:
 .botbar .eta{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:8px 10px;align-self:center}
 .botbar .eta b{font-size:22px}
 .botbar .eta span{font-size:13px}
-.botbar .round.stop{width:60px;height:60px;margin-left:auto;background:var(--surface);color:var(--brake);box-shadow:var(--shadow)}
+.botbar .round.stop{width:60px;height:60px;background:var(--surface);color:var(--brake);box-shadow:var(--shadow)}
+.botbar .round.mute{width:60px;height:60px;margin-left:auto;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.botbar .eta:not([hidden])~.round.mute{margin-left:0}
+.round.mute[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.round.mute .off{display:none}
+.round.mute[aria-pressed="true"] .on{display:none}
+.round.mute[aria-pressed="true"] .off{display:inline}
 /* guide des autorisations : une étape à la fois */
 .gstep{display:flex;flex-direction:column;gap:8px;font:600 16px var(--f-display);color:var(--muted);margin-top:6px}
 .gbar{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px}
@@ -311,6 +317,7 @@ details.more p{font-size:14px}
     </div>
     <div class="eta" id="etaBox" hidden><b id="hEtaT">Pied Levé</b><span id="hEtaI">sans destination</span></div>
     <span id="hEco" hidden>0,00 L</span>
+    <button class="round mute" id="bMute" type="button" aria-pressed="false" aria-label="Couper le son"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/><path class="off" d="M16 9l5 6M21 9l-5 6"/></svg></button>
     <button class="round stop" id="bEnd" aria-label="Terminer le trajet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
 </div>
@@ -802,11 +809,26 @@ function onGeoErr(e){ const g=$('cGps'); g.textContent='GPS : '+(e.code===1?'ref
 // Distance « lever le pied » avant l'obstacle, figée pour que le repère ne bouge pas. Seul guide() la modifie :
 // recalculée si la vitesse change beaucoup (écart > 30 m), et plus du tout à moins de 150 m du repère.
 // (Avant, le tracé coloré la recalculait aussi avec une autre vitesse : le repère sautait d'une valeur à l'autre.)
-function liftBefore(e,v,vt,dEff){ const raw=coastDist(v,vt), r=S.liftRef[e.key];
+function liftBefore(e,v,vt,dEff){
+  // calculé pour la vitesse autorisée (ou plus si on roule plus vite) : le point ne recule pas pendant qu'on accélère
+  const vRef=Math.max(v,Math.min(S.limit||50,130)/KMH), raw=coastDist(vRef,vt), r=S.liftRef[e.key];
   if(r==null) S.liftRef[e.key]=Math.round(raw/10)*10;
-  else if(dEff-r>150&&Math.abs(raw-r)>30) S.liftRef[e.key]=Math.round(raw/10)*10;
+  else if(dEff-r>150&&raw-r>30) S.liftRef[e.key]=Math.round(raw/10)*10; // seulement plus tôt, jamais d'aller-retour
   return S.liftRef[e.key]; }
-const liftRefOf=(e,v,vt)=>S.liftRef[e.key]??Math.round(coastDist(v,vt)/10)*10;
+// Zones colorées et repère « lever le pied ici », tirés uniquement des points de lever figés (S.liftRef) :
+// ils ne dépendent pas de la vitesse de l'image en cours, donc pas de clignotement ni de zone qui s'allonge puis se raccourcit.
+// Une zone orange reste affichée jusqu'à l'obstacle, même une fois le pied levé et la voiture ralentie.
+function liftPlan(adv){
+  const zones=[]; let target=null;
+  for(const e of S.ev){ if(e.d-adv<-3) continue; const stop=e.vt===0, end=stop?e.d-20:e.d;
+    if(stop) zones.push([Math.max(0,e.d-20),e.d,2]);
+    const r=S.liftRef[e.key]; if(r==null||(stop&&S.stopDone[e.key])) continue;
+    const ls=Math.max(0,(stop?e.d-15:e.d)-r);
+    if(end>ls) zones.push([ls,end,1]);
+    if(!S.lifted[e.key]&&ls>adv+3&&(!target||ls<target.s)) target={s:ls,e}; }
+  const z=zones.find(z=>z[2]===1&&z[0]>adv); S.zoneShown=z&&S.path?[pointAt(S.path.pts,z[0]),pointAt(S.path.pts,z[1])]:null; // mesuré par les tests
+  return {zones,target};
+}
 function guide(v,adv){
   let ctrl=null,best=Infinity,info=null;
   for(const e of S.ev){
@@ -980,9 +1002,12 @@ function beep(f,n){ if(!voiceOn||!actx) return; try{ for(let k=0;k<n;k++){ const
 function speakNative(txt){ const T=PLUG.TextToSpeech; if(!T) return false; T.stop().catch(()=>{}).finally(()=>T.speak({text:txt,lang:'fr-FR',rate:1.05,category:'playback'}).catch(()=>{})); return true; }
 function say(txt){ if(!voiceOn) return; if(NATIVE&&PLUG.TextToSpeech){ const now=performance.now(); if(now-S.lastSay<2500) return; S.lastSay=now; speakNative(txt); return; }
   if(!('speechSynthesis' in window)) return; const now=performance.now(); if(now-S.lastSay<2500) return; S.lastSay=now; try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(txt); u.lang='fr-FR'; u.rate=1.05; setTimeout(()=>speechSynthesis.speak(u),350); }catch(e){} }
-function setVoice(on){ voiceOn=on; $('bSound').setAttribute('aria-checked',String(on)); try{ localStorage.setItem('pl-voice',on?'1':'0'); }catch(e){} }
+function setVoice(on){ voiceOn=on; $('bSound').setAttribute('aria-checked',String(on));
+  const m=$('bMute'); m.setAttribute('aria-pressed',String(!on)); m.setAttribute('aria-label',on?'Couper le son':'Remettre le son');
+  if(!on){ try{ speechSynthesis.cancel(); }catch(e){} try{ if(NATIVE&&PLUG.TextToSpeech) PLUG.TextToSpeech.stop().catch(()=>{}); }catch(e){} }
+  try{ localStorage.setItem('pl-voice',on?'1':'0'); }catch(e){} }
 try{ if(localStorage.getItem('pl-voice')==='0') setVoice(false); }catch(e){}
-$('bSound').onclick=()=>setVoice(!voiceOn);
+$('bSound').onclick=()=>setVoice(!voiceOn); $('bMute').onclick=()=>setVoice(!voiceOn);
 
 /* ===== Affichage ===== */
 const cv=$('cv'), ctx=cv.getContext('2d'); let T={}, camH=null, ppm=1.4, dpr=Math.min(2,window.devicePixelRatio||1);
@@ -1009,19 +1034,16 @@ function draw(g,adv,dtR){
   const sD=V&&V.path===P?Math.max(0,V.s):adv; // départ des tracés : sous la voiture affichée
   if(sD>1){ path(0,sD); ctx.strokeStyle=T.travel; ctx.lineWidth=7/ppm; ctx.stroke(); }
   // zones colorées
-  const zones=[]; const v=V?V.v:S.v;
-  for(const e of S.ev){ const dn=e.d-adv; if(dn<-3) continue; const stop=e.vt===0, vt=(stop?12:e.vt)/KMH, dEff=stop?dn-15:dn;
-    if(stop) zones.push([adv+Math.max(0,dn-20),adv+dn,2]);
-    if(v>vt+0.4){ const la=dEff-liftRefOf(e,v,vt); zones.push([adv+Math.max(0,la),adv+Math.max(0,stop?dn-20:dn),1]); } }
+  const LP=liftPlan(adv), zones=LP.zones;
   const colAt=s=>{ let c=0; for(const z of zones){ if(s>=z[0]&&s<=z[1]) c=Math.max(c,z[2]); } return c; };
   const cols=[T.go,T.lift,T.brake];
   const flush=(a,b,c)=>{ if(b-a<0.5) return; path(a,b); ctx.strokeStyle=cols[c]; ctx.lineWidth=8/ppm; ctx.stroke(); };
   const cuts=[sD,P.len]; for(const z of zones) for(const b of [z[0],z[1]]) if(b>sD&&b<P.len) cuts.push(b); cuts.sort((a,b)=>a-b);
   let st=sD, cur=null; for(let k=1;k<cuts.length;k++){ const c=colAt((cuts[k-1]+cuts[k])/2); if(cur==null) cur=c; else if(c!==cur){ flush(st,cuts[k-1],cur); st=cuts[k-1]; cur=c; } } flush(st,P.len,cur??0);
   // repère « lever ici »
-  const showLift=(g.lvl==='prep'||g.lvl==='go')&&g.e&&g.liftAt>3&&g.liftAt<P.len;
-  S.liftShown=showLift?pointAt(P.pts,adv+g.liftAt):null; // repère affiché (mesuré par les tests)
-  if(showLift){ const L=pointAt(P.pts,adv+g.liftAt), w=13/ppm; ctx.strokeStyle=T.lift; ctx.lineWidth=4/ppm; ctx.beginPath(); ctx.moveTo(L[0]-Math.cos(L[2])*w,L[1]+Math.sin(L[2])*w); ctx.lineTo(L[0]+Math.cos(L[2])*w,L[1]-Math.sin(L[2])*w); ctx.stroke(); }
+  const LT=LP.target&&LP.target.s<P.len?pointAt(P.pts,LP.target.s):null, showLift=!!LT;
+  S.liftShown=LT; // repère affiché (mesuré par les tests)
+  if(showLift){ const L=LT, w=13/ppm; ctx.strokeStyle=T.lift; ctx.lineWidth=4/ppm; ctx.beginPath(); ctx.moveTo(L[0]-Math.cos(L[2])*w,L[1]+Math.sin(L[2])*w); ctx.lineTo(L[0]+Math.cos(L[2])*w,L[1]-Math.sin(L[2])*w); ctx.stroke(); }
   ctx.setTransform(dpr,0,0,dpr,0,0);
   // panneaux
   const inV=([x,y])=>x>-40&&x<W+40&&y>-30&&y<H+30;
@@ -1034,7 +1056,7 @@ function draw(g,adv,dtR){
     else if(e.type==='feu'||e.type==='carrefour'||e.type==='fin'||e.type==='tourne') pill(x,y,e.label,T.surface,T.ink);
     else if(e.type==='arrivee') pill(x,y,'Arrivée',T.ink,T.surface);
     else { sign(x+13,y,e.vt); pill(x+30,y,e.label,T.surface,T.ink); } }
-  if(showLift){ const L=pointAt(P.pts,adv+g.liftAt), s=proj(L[0],L[1]); if(inV(s)){ ctx.font='700 14px "Barlow Semi Condensed", sans-serif'; const t='Lever le pied ici', w=ctx.measureText(t).width+14, x=clamp(s[0]-w-22,4,W-w-4); ctx.fillStyle=T.lift; rr(x,s[1]-12,w,24,6); ctx.fill(); ctx.fillStyle=T['sign-ink']; ctx.fillText(t,x+7,s[1]+1); } }
+  if(showLift){ const L=LT, s=proj(L[0],L[1]); if(inV(s)){ ctx.font='700 14px "Barlow Semi Condensed", sans-serif'; const t='Lever le pied ici', w=ctx.measureText(t).width+14, x=clamp(s[0]-w-22,4,W-w-4); ctx.fillStyle=T.lift; rr(x,s[1]-12,w,24,6); ctx.fill(); ctx.fillStyle=T['sign-ink']; ctx.fillText(t,x+7,s[1]+1); } }
   // voiture (vue de dessus, l'avant vers le haut)
   ctx.save(); ctx.translate(ox,oy); ctx.rotate(car[2]-camH);
   ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.fillStyle=T.accent; ctx.globalAlpha=.16; ctx.fill(); ctx.globalAlpha=1;
@@ -1146,10 +1168,7 @@ function drawGL(g,adv,dtR,ts){
   if(ts-lastAhead<250) return; lastAhead=ts;
   const P=S.path; if(!P){ MAP.getSource('ahead').setData(EMPTY); clearDriveMarkers(); return; }
   // tracé devant, coloré par zone
-  const zones=[]; const v=V.v; const sD=V.path===P?V.s:adv;
-  for(const e of S.ev){ const dn=e.d-adv; if(dn<-3) continue; const stop=e.vt===0, vt=(stop?12:e.vt)/KMH, dEff=stop?dn-15:dn;
-    if(stop) zones.push([adv+Math.max(0,dn-20),adv+dn,2]);
-    if(v>vt+0.4){ const la=dEff-liftRefOf(e,v,vt); zones.push([adv+Math.max(0,la),adv+Math.max(0,stop?dn-20:dn),1]); } }
+  const sD=V.path===P?V.s:adv, LP=liftPlan(adv), zones=LP.zones;
   const colAt=s=>{ let c=0; for(const z of zones){ if(s>=z[0]&&s<=z[1]) c=Math.max(c,z[2]); } return c; };
   // tracé dessiné depuis 15 m derrière la voiture affichée : son début reste caché sous elle
   // points du tracé : sommets de la route + limites exactes des zones (rien qui glisse avec la voiture)
@@ -1172,9 +1191,9 @@ function drawGL(g,adv,dtR,ts){
     else m.setLngLat(llOf(...pointAt(P.pts,e.d).slice(0,2))); }
   for(const [k,m] of evMk){ if(!seen.has(k)){ m.remove(); evMk.delete(k); } }
   // repère « lever le pied ici »
-  const showLift=(g.lvl==='prep'||g.lvl==='go')&&g.e&&g.liftAt>3&&g.liftAt<P.len;
-  S.liftShown=showLift?pointAt(P.pts,adv+g.liftAt):null; // repère affiché (mesuré par les tests)
-  if(showLift){ if(!liftMk) liftMk=new maplibregl.Marker({element:el('mk-lift','Lever le pied ici'),anchor:'right',offset:[-16,0],subpixelPositioning:true}); const q=pointAt(P.pts,adv+g.liftAt); liftMk.setLngLat(llOf(q[0],q[1])); if(!liftMk._map) liftMk.addTo(MAP); }
+  const LT=LP.target&&LP.target.s<P.len?pointAt(P.pts,LP.target.s):null;
+  S.liftShown=LT; // repère affiché (mesuré par les tests)
+  if(LT){ if(!liftMk) liftMk=new maplibregl.Marker({element:el('mk-lift','Lever le pied ici'),anchor:'right',offset:[-16,0],subpixelPositioning:true}); liftMk.setLngLat(llOf(LT[0],LT[1])); if(!liftMk._map) liftMk.addTo(MAP); }
   else if(liftMk){ liftMk.remove(); liftMk=null; }
 }
 initMap();
@@ -1281,7 +1300,7 @@ setInterval(()=>{ if(!inBackground()||!S.running||S.mode!=='sim') return; S.v=SI
 let wake=null;
 async function keepAwake(){ try{ if(NATIVE&&PLUG.KeepAwake){ await PLUG.KeepAwake.keepAwake(); return; } if('wakeLock' in navigator) wake=await navigator.wakeLock.request('screen'); }catch(e){} }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.running) keepAwake(); else if(S.running) logLine('Page passée en arrière-plan'); });
-function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative('Pied Levé est prêt.'); return; } try{ const u=new SpeechSynthesisUtterance('Pied Levé est prêt.'); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
+function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative('Pied Levé est prêt.'); return; } if(!voiceOn) return; try{ const u=new SpeechSynthesisUtterance('Pied Levé est prêt.'); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
 function reset(){
   Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},curveMem:[],liftShown:null,vS:null,veh:null,auto:false,idleSince:0,autoEnd:false,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
   $('hEco').textContent='0,00 L'; $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
