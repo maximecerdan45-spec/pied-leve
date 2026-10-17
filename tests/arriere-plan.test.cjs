@@ -75,6 +75,39 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   await page.click('#bEnd'); await page.waitForTimeout(300);
   check((await page.evaluate(() => __log.removed)).includes('w1'), 'fin du trajet : le GPS en arrière-plan s\'arrête (plus de notification)');
 
+  // Simulation : la bulle doit aussi apparaître, et la simulation continuer quand l'appli est cachée
+  const sim = await browser.newPage();
+  await sim.route('**/*', r => { const u = r.request().url();
+    if (u.startsWith(url)) return r.continue();
+    if (u.includes('/interpreter')) return r.fulfill({ status: 200, contentType: 'application/json', body: overpass });
+    return r.abort(); });
+  await sim.addInitScript(({ LAT0, LON0 }) => {
+    window.__log = { bubble: [], askedPerm: 0 };
+    window.Capacitor = { isNativePlatform: () => true, Plugins: {
+      Bubble: { hasPermission: () => Promise.resolve({ granted: __log.askedPerm > 0 }), requestPermission: () => { __log.askedPerm++; return Promise.resolve(); },
+        show: o => { __log.bubble.push(['show', o.line1, o.line2]); return Promise.resolve(); },
+        update: o => { __log.bubble.push(['update', o.line1, o.line2]); return Promise.resolve(); },
+        hide: () => { __log.bubble.push(['hide']); return Promise.resolve(); } },
+      TextToSpeech: { speak: () => Promise.resolve(), stop: () => Promise.resolve() },
+      KeepAwake: { keepAwake: () => Promise.resolve(), allowSleep: () => Promise.resolve() } } };
+    navigator.geolocation.getCurrentPosition = ok => ok({ coords: { latitude: LAT0 + 300 / 111320, longitude: LON0 } });
+  }, { LAT0, LON0 });
+  let simDialogs = 0; sim.on('dialog', d => { simDialogs++; d.accept(); });
+  await sim.goto(url); await sim.waitForTimeout(600);
+  check(await sim.isVisible('#bubbleBox'), 'accueil : bouton « Activer » la bulle tant qu\'elle n\'est pas autorisée');
+  await sim.click('#bSim'); await sim.waitForTimeout(4000);
+  check(simDialogs === 1, 'simulation : l\'appli propose aussi d\'autoriser la bulle');
+  await sim.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    window.requestAnimationFrame = () => 0; document.dispatchEvent(new Event('visibilitychange')); });
+  await sim.waitForTimeout(6500);
+  const sb = await sim.evaluate(() => __log.bubble);
+  check(sb.length && sb[0][0] === 'show', 'simulation, appli cachée : la bulle apparaît');
+  check(new Set(sb.map(b => b.slice(1).join(' '))).size >= 3, `simulation, appli cachée : la simulation continue et la bulle suit (${[...new Set(sb.map(b => b.slice(1).join(' ')))].slice(0, 4).join(' → ')})`);
+  await sim.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
+  await sim.waitForTimeout(300);
+
   await browser.close(); srv.close();
   console.log(failed ? `${failed} vérification(s) en échec` : 'RÉUSSI : l\'appli conseille aussi en arrière-plan');
   process.exit(failed ? 1 : 0);
