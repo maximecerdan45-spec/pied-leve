@@ -43,7 +43,10 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
         hide: () => { __log.bubble.push(['hide']); return Promise.resolve(); },
         arm: o => { __log.bubble.push(['arm', o.active]); return Promise.resolve(); },
         status: () => Promise.resolve({ granted: true, pauses: 1, shows: 1, lastError: '' }),
-        checkSetup: () => Promise.resolve({ location: true, notifications: true, battery: true, overlay: __log.askedPerm > 0, maker: window.__maker || 'samsung' }),
+        checkSetup: () => Promise.resolve({ location: true, notifications: true, battery: true, overlay: __log.askedPerm > 0, maker: window.__maker || 'samsung', waze: true, usage: false, autostart: false }),
+        addListener: (ev, cb) => { (window.__listeners = window.__listeners || {})[ev] = cb; return Promise.resolve({ remove() {} }); },
+        consumeAutostart: () => { const p = !!window.__autoPending; window.__autoPending = false; return Promise.resolve({ pending: p }); },
+        toBack: () => { __log.toBack = (__log.toBack || 0) + 1; return Promise.resolve(); },
         openSetting: o => { (__log.opened = __log.opened || []).push(o.what); if (o.what === 'overlay') __log.askedPerm++; return Promise.resolve(); } },
       KeepAwake: { keepAwake: () => { __log.awake++; return Promise.resolve(); }, allowSleep: () => Promise.resolve() } } };
     navigator.geolocation.watchPosition = () => { window.__webGps = true; return 1; };
@@ -51,9 +54,11 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   let dialogs = 0; page.on('dialog', d => { dialogs++; d.accept(); });
   await page.goto(url); await page.waitForTimeout(600);
   check(await page.isVisible('#ovSetup'), 'premier lancement : l\'écran « Préparer votre téléphone » s\'ouvre');
-  check((await page.$$('#setupList .srow')).length === 4 && (await page.$$('#setupList .srow.ok')).length === 3, 'il liste 4 réglages (position, notifications, bulle, batterie), dont 3 déjà faits');
-  await page.click('#setupList .srow:not(.ok) .tbtn'); await page.waitForTimeout(1500);
+  check((await page.$$('#setupList .srow')).length === 5 && (await page.$$('#setupList .srow.ok')).length === 3, 'il liste 4 réglages obligatoires, dont 3 déjà faits, plus « Démarrer tout seul avec Waze » (facultatif)');
+  await page.click('#setupList .srow:nth-child(3) .tbtn'); await page.waitForTimeout(1500);
   check((await page.evaluate(() => __log.opened)).includes('overlay') && (await page.$$('#setupList .srow.ok')).length === 4, 'toucher « Ouvrir » ouvre le réglage de la bulle, puis la ligne passe en ✓ au retour');
+  await page.click('#setupList .srow:nth-child(5) .tbtn'); await page.waitForTimeout(200);
+  check((await page.evaluate(() => __log.opened)).includes('usage'), '« Démarrer tout seul avec Waze » : ouvre le réglage « Accès aux données d\'utilisation »');
   check((await page.textContent('#bSetupDone')) === 'C’est prêt', 'tout est fait : le bouton devient « C’est prêt »');
   await page.click('#bSetupDone'); await page.waitForTimeout(300);
   check(!(await page.isVisible('#ovSetup')) && /tout est prêt/.test(await page.textContent('#setupTxt')), 'retour à l\'accueil : « Réglages du téléphone · tout est prêt ✓ »');
@@ -106,7 +111,10 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
         hide: () => { __log.bubble.push(['hide']); return Promise.resolve(); },
         arm: o => { __log.bubble.push(['arm', o.active]); return Promise.resolve(); },
         status: () => Promise.resolve({ granted: true, pauses: 1, shows: 1, lastError: '' }),
-        checkSetup: () => Promise.resolve({ location: true, notifications: true, battery: true, overlay: __log.askedPerm > 0, maker: window.__maker || 'samsung' }),
+        checkSetup: () => Promise.resolve({ location: true, notifications: true, battery: true, overlay: __log.askedPerm > 0, maker: window.__maker || 'samsung', waze: true, usage: false, autostart: false }),
+        addListener: (ev, cb) => { (window.__listeners = window.__listeners || {})[ev] = cb; return Promise.resolve({ remove() {} }); },
+        consumeAutostart: () => { const p = !!window.__autoPending; window.__autoPending = false; return Promise.resolve({ pending: p }); },
+        toBack: () => { __log.toBack = (__log.toBack || 0) + 1; return Promise.resolve(); },
         openSetting: o => { (__log.opened = __log.opened || []).push(o.what); if (o.what === 'overlay') __log.askedPerm++; return Promise.resolve(); } },
       TextToSpeech: { speak: () => Promise.resolve(), stop: () => Promise.resolve() },
       KeepAwake: { keepAwake: () => Promise.resolve(), allowSleep: () => Promise.resolve() } } };
@@ -114,7 +122,7 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   }, { LAT0, LON0 });
   await sim.addInitScript(() => { window.__maker = 'xiaomi'; });
   await sim.goto(url); await sim.waitForTimeout(600);
-  check((await sim.$$('#setupList .srow')).length === 5, 'téléphone Xiaomi : une 5e ligne explique les fenêtres pop-up');
+  check((await sim.$$('#setupList .srow')).length === 6, 'téléphone Xiaomi : une ligne de plus explique les fenêtres pop-up');
   await sim.click('#bSetupDone'); await sim.waitForTimeout(300);
   check(/2 à faire/.test(await sim.textContent('#setupTxt')), 'accueil : « Réglages du téléphone · 2 à faire » tant que ce n\'est pas fini');
   await sim.click('#bSim'); await sim.waitForTimeout(4000);
@@ -125,6 +133,29 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   check(new Set(sb.filter(b => b[0] === 'update').map(b => b.slice(1).join(' '))).size >= 3, `simulation, appli cachée sans signal de la page : la simulation continue et le contenu de la bulle suit (${[...new Set(sb.filter(b => b[0] === 'update').map(b => b.slice(1).join(' ')))].slice(0, 4).join(' → ')})`);
   await sim.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
   await sim.waitForTimeout(300);
+
+  // Démarrage automatique : Android signale que Waze vient de s'ouvrir
+  const auto = await browser.newPage();
+  await auto.route('**/*', r => r.request().url().startsWith(url) ? r.continue() : r.abort());
+  await auto.addInitScript(() => { window.__log = { bubble: [], watchers: [] }; window.__autoPending = false;
+    window.Capacitor = { isNativePlatform: () => true, Plugins: {
+      Bubble: { checkSetup: () => Promise.resolve({ location: true, notifications: true, battery: true, overlay: true, maker: 'samsung', waze: true, usage: true, autostart: true }),
+        addListener: (ev, cb) => { (window.__listeners = window.__listeners || {})[ev] = cb; return Promise.resolve({ remove() {} }); },
+        consumeAutostart: () => { const p = !!window.__autoPending; window.__autoPending = false; return Promise.resolve({ pending: p }); },
+        toBack: () => { __log.toBack = (__log.toBack || 0) + 1; return Promise.resolve(); },
+        arm: () => Promise.resolve(), update: () => Promise.resolve(), hide: () => Promise.resolve(), show: () => Promise.resolve(),
+        status: () => Promise.resolve({ granted: true, pauses: 0, shows: 0, lastError: '' }), hasPermission: () => Promise.resolve({ granted: true }) },
+      BackgroundGeolocation: { addWatcher: (o, cb) => { __log.watchers.push(o); return Promise.resolve('w'); }, removeWatcher: () => Promise.resolve() },
+      TextToSpeech: { speak: () => Promise.resolve(), stop: () => Promise.resolve() }, KeepAwake: { keepAwake: () => Promise.resolve(), allowSleep: () => Promise.resolve() } } }; });
+  await auto.addInitScript(() => { try { localStorage.setItem('pl-setup-seen', '1'); } catch (e) {} });
+  await auto.goto(url); await auto.waitForTimeout(600);
+  check(!(await auto.isVisible('#drive')), 'démarrage auto : rien ne se passe tant que Waze n\'est pas ouvert');
+  await auto.evaluate(() => { window.__autoPending = true; window.__listeners.autostart(); }); await auto.waitForTimeout(2200);
+  const au = await auto.evaluate(() => ({ drive: !document.getElementById('drive').hidden, gps: __log.watchers.length, back: __log.toBack || 0 }));
+  check(au.drive && au.gps === 1, 'Waze s\'ouvre : le trajet démarre tout seul (GPS en arrière-plan lancé)');
+  check(au.back === 1, 'puis Pied Levé se remet derrière Waze');
+  await auto.evaluate(() => { window.__autoPending = true; window.__listeners.autostart(); }); await auto.waitForTimeout(500);
+  check((await auto.evaluate(() => __log.watchers.length)) === 1, 'trajet déjà en cours : pas de second démarrage');
 
   await browser.close(); srv.close();
   console.log(failed ? `${failed} vérification(s) en échec` : 'RÉUSSI : l\'appli conseille aussi en arrière-plan');

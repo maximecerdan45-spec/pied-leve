@@ -2,6 +2,8 @@ package app.piedleve;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.AppOpsManager;
+import android.os.Process;
 import android.content.pm.PackageManager;
 import android.os.PowerManager;
 import androidx.core.app.ActivityCompat;
@@ -48,6 +50,56 @@ public class BubblePlugin extends Plugin {
     private TextView line2;
     private GradientDrawable shape;
     private boolean shown = false;
+    // Lu par la veille « Waze » : un trajet est-il déjà en cours ?
+    static volatile boolean tripActive = false;
+    // Appli ouverte par la veille « Waze » : la page doit lancer un trajet
+    static volatile boolean autostartPending = false;
+    private static BubblePlugin instance;
+
+    @Override
+    public void load() {
+        instance = this;
+    }
+
+    static void fireAutostart() {
+        if (instance != null) instance.notifyListeners("autostart", new JSObject());
+    }
+
+    private boolean usageGranted() {
+        try {
+            AppOpsManager ops = (AppOpsManager) getContext().getSystemService(Context.APP_OPS_SERVICE);
+            int mode = ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), getContext().getPackageName());
+            return mode == AppOpsManager.MODE_ALLOWED;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @PluginMethod
+    public void consumeAutostart(PluginCall call) {
+        JSObject r = new JSObject();
+        r.put("pending", autostartPending);
+        autostartPending = false;
+        call.resolve(r);
+    }
+
+    /** Remet Pied Levé derrière (Waze revient devant). */
+    @PluginMethod
+    public void toBack(PluginCall call) {
+        if (getActivity() != null) getActivity().runOnUiThread(() -> getActivity().moveTaskToBack(true));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void setAutoStart(PluginCall call) {
+        boolean on = Boolean.TRUE.equals(call.getBoolean("on", false));
+        try {
+            WazeWatchService.setOn(getContext(), on && usageGranted());
+            call.resolve();
+        } catch (Exception e) {
+            call.reject(String.valueOf(e.getMessage()));
+        }
+    }
     // Trajet en cours : la bulle s'affiche d'elle-même quand l'appli passe en arrière-plan
     private boolean armed = false;
     private String color = "#5A6560", text1 = "PIED LEVÉ", text2 = "";
@@ -83,6 +135,9 @@ public class BubblePlugin extends Plugin {
             battery = pm != null && pm.isIgnoringBatteryOptimizations(ctx.getPackageName());
         }
         r.put("battery", battery);
+        r.put("usage", usageGranted());
+        r.put("autostart", WazeWatchService.isOn(ctx) && usageGranted());
+        r.put("waze", ctx.getPackageManager().getLaunchIntentForPackage(WazeWatchService.WAZE) != null);
         r.put("maker", Build.MANUFACTURER == null ? "" : Build.MANUFACTURER.toLowerCase());
         call.resolve(r);
     }
@@ -122,6 +177,14 @@ public class BubblePlugin extends Plugin {
                         } catch (Exception e) {
                             start(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
                         }
+                    }
+                    break;
+                case "usage":
+                    // « Accès aux données d'utilisation » : pour savoir quand Waze s'ouvre
+                    try {
+                        start(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:" + pkg)));
+                    } catch (Exception e) {
+                        start(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
                     }
                     break;
                 case "xiaomi":
@@ -184,6 +247,7 @@ public class BubblePlugin extends Plugin {
     @PluginMethod
     public void arm(PluginCall call) {
         armed = Boolean.TRUE.equals(call.getBoolean("active", false));
+        tripActive = armed;
         readInfo(call);
         if (!armed) main.post(this::remove);
         call.resolve();

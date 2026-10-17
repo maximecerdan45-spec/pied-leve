@@ -612,7 +612,11 @@ function ecoStep(v0,v1,dt){
   $('hEco').textContent=`${nf(E.saved,2)} L`;
 }
 /* ===== Réception d'une position ===== */
-function onFix(p){ const F=S.fl, t=performance.now(); if(F){ if(F.lastFix) F.fixGap+=t-F.lastFix; F.lastFix=t; F.fixes++; const sp=p&&p.coords&&p.coords.speed; if(sp!=null&&!isNaN(sp)) F.speedGps++; }
+// Trajet démarré tout seul : il s'arrête tout seul après 10 minutes à l'arrêt (batterie)
+function autoIdle(){ if(!S.auto||!S.running) return; const now=Date.now();
+  if((S.vS??S.v)>1.5){ S.idleSince=0; return; } if(!S.idleSince){ S.idleSince=now; return; }
+  if(now-S.idleSince>600000){ logLine('Arrêt automatique : 10 minutes à l’arrêt'); end(); } }
+function onFix(p){ setTimeout(autoIdle,0); const F=S.fl, t=performance.now(); if(F){ if(F.lastFix) F.fixGap+=t-F.lastFix; F.lastFix=t; F.fixes++; const sp=p&&p.coords&&p.coords.speed; if(sp!=null&&!isNaN(sp)) F.speedGps++; }
   onFixCore(p); backgroundTick(); }
 function onFixCore(p){
   const c=p.coords, now=performance.now();
@@ -751,20 +755,24 @@ const SETUP=[
   {k:'notifications',t:'Notifications',d:'Android exige la notification « Pied Levé en route » pour garder le GPS actif quand Waze est devant.',b:'Autoriser'},
   {k:'overlay',t:'Bulle par-dessus les autres applis',d:'Pour voir les conseils dans une bulle quand Waze est devant. Activez « Superposition sur d’autres applis ».',b:'Ouvrir'},
   {k:'battery',t:'Batterie sans restriction',d:'Pour qu’Android n’arrête pas Pied Levé pendant le trajet.',b:'Ouvrir'},
+  {k:'autostart',t:'Démarrer tout seul avec Waze',d:'Facultatif. Le trajet se lance dès que vous ouvrez Waze, sans ouvrir Pied Levé. Autorisez « Accès aux données d’utilisation » pour Pied Levé, puis revenez et touchez « Activer ».',b:'Activer',optional:true},
   {k:'xiaomi',t:'Fenêtres pop-up (Xiaomi)',d:'Dans « Autres autorisations », autorisez « Afficher des fenêtres pop-up lors de l’exécution en arrière-plan », puis revenez et touchez « C’est fait ».',b:'Ouvrir',manual:true}];
 const SET={st:null,first:{},timer:null};
 const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } }, lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
 async function setupCheck(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.checkSetup) return null;
   try{ const r=await B.checkSetup(); r.xiaomiNeeded=/xiaomi|redmi|poco/.test(r.maker||''); r.xiaomi=lsGet('pl-xiaomi-ok')==='1'; SET.st=r; return r; }catch(e){ return null; } }
-function setupItems(){ const r=SET.st; return r?SETUP.filter(i=>i.k!=='xiaomi'||r.xiaomiNeeded):[]; }
-function setupMissing(){ const r=SET.st; return r?setupItems().filter(i=>!r[i.k]).length:0; }
+function setupItems(){ const r=SET.st; return r?SETUP.filter(i=>(i.k!=='xiaomi'||r.xiaomiNeeded)&&(i.k!=='autostart'||r.waze)):[]; }
+function setupMissing(){ const r=SET.st; return r?setupItems().filter(i=>!i.optional&&!r[i.k]).length:0; }
 function setupRender(){
   const r=SET.st; if(!r) return; const list=$('setupList'); list.textContent='';
   setupItems().forEach((it,n)=>{ const ok=!!r[it.k], row=document.createElement('div'); row.className='srow'+(ok?' ok':'');
     row.innerHTML=`<div class="st">${ok?'✓':n+1}</div><div class="tx"><b></b><small></small></div><button class="tbtn" type="button"></button>`;
-    row.querySelector('b').textContent=it.t; row.querySelector('small').textContent=ok?'C’est fait.':it.d;
+    row.querySelector('b').textContent=it.t; row.querySelector('small').textContent=ok?(it.k==='autostart'?'Activé : le trajet démarre quand Waze s’ouvre.':'C’est fait.'):it.d;
     const bt=row.querySelector('button'); bt.textContent=it.manual&&SET.first[it.k]===false?'C’est fait':it.b;
+    if(it.k==='autostart'){ if(ok){ bt.textContent='Couper'; bt.style.display='block'; } else if(!r.usage) bt.textContent='Ouvrir'; }
     bt.onclick=()=>{ if(it.manual&&SET.first[it.k]===false){ lsSet('pl-xiaomi-ok','1'); setupCheck().then(setupRender); return; }
+      if(it.k==='autostart'){ const B=PLUG.Bubble; if(ok) B.setAutoStart({on:false}).catch(()=>{}).finally(()=>setupCheck().then(setupRender));
+        else if(!r.usage) B.openSetting({what:'usage'}).catch(()=>{}); else B.setAutoStart({on:true}).catch(()=>{}).finally(()=>setupCheck().then(setupRender)); return; }
       PLUG.Bubble.openSetting({what:it.k,first:SET.first[it.k]!==false}).catch(()=>{}); SET.first[it.k]=false; setupRender(); };
     list.append(row); });
   const miss=setupMissing(); $('bSetupDone').textContent=miss?'Continuer sans tout autoriser':'C’est prêt';
@@ -778,6 +786,16 @@ $('bSetupDone').onclick=setupClose; $('bSetup').onclick=setupOpen;
 // Au lancement : l'écran s'ouvre tout seul la première fois, ou s'il manque la position
 setupCheck().then(r=>{ if(!r) return; setupRender(); if(lsGet('pl-setup-seen')!=='1'||!r.location) setupOpen(); });
 function bubbleBoxRefresh(){ setupCheck().then(setupRender); }
+/* Démarrage automatique : Android a ouvert Pied Levé parce que Waze vient de s'ouvrir.
+   On lance le trajet (le GPS doit démarrer appli devant), puis on remet Pied Levé derrière Waze. */
+function autoStart(){
+  if(!NATIVE||S.running) return;
+  $('ovSetup').hidden=true; $('ovEnd').hidden=true;
+  start('real'); S.auto=true; logLine('Démarrage automatique : Waze vient de s’ouvrir');
+  setTimeout(()=>{ try{ PLUG.Bubble.toBack().catch(()=>{}); }catch(e){} },1500);
+}
+function autoCheck(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.consumeAutostart) return; B.consumeAutostart().then(r=>{ if(r&&r.pending) autoStart(); }).catch(()=>{}); }
+if(NATIVE&&PLUG.Bubble){ try{ PLUG.Bubble.addListener('autostart',autoCheck); }catch(e){} autoCheck(); }
 // Quelle version tourne ? (affiché sur l'accueil et dans le journal, pour ne pas confondre appli web et appli Android)
 let APPVER='Version web';
 (async()=>{ if(NATIVE){ APPVER='Appli Android'; try{ const r=await fetch('./app-version.json',{cache:'no-store'}); const c=r.ok?(await r.json()).code:0; if(c) APPVER+=' · version '+c; }catch(e){} } $('appVer').textContent=APPVER; })();
@@ -1109,7 +1127,7 @@ async function keepAwake(){ try{ if(NATIVE&&PLUG.KeepAwake){ await PLUG.KeepAwak
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.running) keepAwake(); else if(S.running) logLine('Page passée en arrière-plan'); });
 function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative('Pied Levé est prêt.'); return; } try{ const u=new SpeechSynthesisUtterance('Pied Levé est prêt.'); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
 function reset(){
-  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},vS:null,veh:null,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
+  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},vS:null,veh:null,auto:false,idleSince:0,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
   $('hEco').textContent='0,00 L'; $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
   camH=null; Object.assign(SIM,{v:0,s:0,acc:0,wait:0,done:false});
 }
