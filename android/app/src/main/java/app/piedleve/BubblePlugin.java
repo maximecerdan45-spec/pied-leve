@@ -61,6 +61,11 @@ public class BubblePlugin extends Plugin {
     @Override
     public void load() {
         instance = this;
+        // La veille « Waze » s'arrête quand l'appli est fermée par le système : on la relance à chaque ouverture
+        try {
+            if (WazeWatchService.isOn(getContext()) && !WazeWatchService.running && usageGranted()) WazeWatchService.setOn(getContext(), true);
+        } catch (Exception ignored) {
+        }
     }
 
     static void fireAutostart() {
@@ -196,6 +201,16 @@ public class BubblePlugin extends Plugin {
                         start(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.parse("package:" + pkg)));
                     } catch (Exception e) {
                         start(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+                    }
+                    break;
+                case "xiaomiAuto":
+                    // Xiaomi : « Démarrage automatique » (sinon la veille Waze est arrêtée quand l'appli est fermée)
+                    try {
+                        Intent i = new Intent();
+                        i.setClassName("com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity");
+                        start(i);
+                    } catch (Exception e) {
+                        openAppDetails();
                     }
                     break;
                 case "xiaomi":
