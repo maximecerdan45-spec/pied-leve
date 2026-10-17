@@ -221,6 +221,11 @@ details.mrow ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:
 .botbar .eta b{font-size:22px}
 .botbar .eta span{font-size:13px}
 .botbar .round.stop{width:60px;height:60px;background:var(--surface);color:var(--brake);box-shadow:var(--shadow)}
+.kitty{position:absolute;right:max(16px,var(--sa-right));bottom:calc(var(--sa-bottom) + 100px);display:flex;align-items:center;gap:8px;height:48px;padding:0 16px 0 12px;border-radius:24px;background:var(--surface);box-shadow:var(--shadow);color:var(--go-strong);transition:transform .15s;transform-origin:right center}
+.kitty svg{width:26px;height:26px;flex:none}
+#drive:has(#toast:not([hidden])) .kitty{visibility:hidden} /* le « Bien joué » prend la place de la cagnotte */
+.kitty b{font:700 22px var(--f-display);color:var(--ink);font-variant-numeric:tabular-nums}
+.kitty.bump{transform:scale(1.12)}
 .botbar .round.mute{width:60px;height:60px;margin-left:auto;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
 .botbar .eta:not([hidden])~.round.mute{margin-left:0}
 .round.mute[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
@@ -255,9 +260,9 @@ details.more summary::-webkit-details-marker{display:none}
 details.more[open]>*:not(summary){margin-bottom:12px}
 details.more p{font-size:14px}
 /* ---- côté fun : bravo en direct, note, euros, badges ---- */
-.toast{position:absolute;left:50%;bottom:calc(var(--sa-bottom) + 132px);transform:translateX(-50%);background:var(--go-strong);color:#fff;border-radius:999px;padding:10px 18px;display:flex;gap:10px;align-items:baseline;box-shadow:var(--shadow);font:700 20px var(--f-display);white-space:nowrap;animation:toastIn .25s ease-out}
+.toast{position:absolute;right:max(16px,var(--sa-right));bottom:calc(var(--sa-bottom) + 100px);z-index:2;height:48px;background:var(--go-strong);color:#fff;border-radius:24px;padding:0 18px;display:flex;gap:10px;align-items:center;box-shadow:var(--shadow);font:700 20px var(--f-display);white-space:nowrap;animation:toastIn .25s ease-out;transform-origin:right center}
 .toast span{font-size:22px}
-@keyframes toastIn{from{opacity:0;transform:translate(-50%,-8px) scale(.9)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+@keyframes toastIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
 .goal{display:flex;flex-direction:column;gap:6px}
 .goal .gt{display:flex;justify-content:space-between;gap:10px;font-size:14px;color:var(--muted)}
 .goal .gt b{color:var(--ink);font-weight:600}
@@ -365,6 +370,7 @@ details.more p{font-size:14px}
     </div>
     <div class="eta" id="etaBox" hidden><b id="hEtaT">Pied Levé</b><span id="hEtaI">sans destination</span></div>
     <span id="hEco" hidden>0,00 L</span>
+    <div class="kitty" id="kitty" role="status" aria-label="Cagnotte du trajet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 10.5c0-3.6-3.1-6-7-6S5 6.9 5 10.5c0 1.9.9 3.4 2.3 4.5L7 18.5h3l.5-1.6c.5.1 1 .1 1.5.1s1 0 1.5-.1l.5 1.6h3l-.3-3.5c.9-.7 1.6-1.6 1.9-2.6H21v-2.5h-2.1"/><path d="M10 4.8c.4-1.2 1.6-2 3-2"/><circle cx="15.5" cy="9.5" r=".6" fill="currentColor"/></svg><b id="kittyAmt">0,00 €</b></div>
     <button class="round mute" id="bMute" type="button" aria-pressed="false" aria-label="Couper le son"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/><path class="off" d="M16 9l5 6M21 9l-5 6"/></svg></button>
     <button class="round stop" id="bEnd" aria-label="Terminer le trajet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
@@ -794,7 +800,7 @@ function ecoStep(v0,v1,dt){
   if(E.a>-0.12){ E.fuel+=(BASE+(M*Math.max(0,E.a)+Fres)*vm/(ETA*EF))*dt; }
   else if(E.a>-(coastDecel(vm)+0.6)){ if(vm<=4) E.fuel+=IDLE*dt; else { E.saved+=(BASE+Fres*vm/(ETA*EF))*dt; E.coast+=ds; } }
   else { if(vm<=4) E.fuel+=IDLE*dt; }
-  $('hEco').textContent=`${nf(E.saved,2)} L`;
+  $('hEco').textContent=`${nf(E.saved,2)} L`; kittySet(E.saved*PRICE);
 }
 /* ===== Réception d'une position ===== */
 // Trajet démarré tout seul : il s'arrête tout seul après 10 minutes à l'arrêt (batterie)
@@ -1074,6 +1080,10 @@ function beep(f,n){ if(!voiceOn||!actx) return; try{ for(let k=0;k<n;k++){ const
 function speakNative(txt){ const T=PLUG.TextToSpeech; if(!T) return false; T.stop().catch(()=>{}).finally(()=>T.speak({text:txt,lang:'fr-FR',rate:1.05,category:'playback'}).catch(()=>{})); return true; }
 function say(txt){ if(!voiceOn) return; if(NATIVE&&PLUG.TextToSpeech){ const now=performance.now(); if(now-S.lastSay<2500) return; S.lastSay=now; speakNative(txt); return; }
   if(!('speechSynthesis' in window)) return; const now=performance.now(); if(now-S.lastSay<2500) return; S.lastSay=now; try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(txt); u.lang='fr-FR'; u.rate=1.05; setTimeout(()=>speechSynthesis.speak(u),350); }catch(e){} }
+// Cagnotte du trajet : les euros économisés, visibles en permanence en bas de l'écran (petit rebond à chaque centime)
+const KITTY={v:-1};
+function kittySet(eur){ const c=Math.floor(eur*100+1e-6); if(c===KITTY.v) return; const up=KITTY.v>=0&&c>KITTY.v; KITTY.v=c;
+  $('kittyAmt').textContent=`${nf(c/100,2)} €`; if(up){ const k=$('kitty'); k.classList.add('bump'); setTimeout(()=>k.classList.remove('bump'),180); } }
 function setVoice(on){ voiceOn=on; $('bSound').setAttribute('aria-checked',String(on));
   const m=$('bMute'); m.setAttribute('aria-pressed',String(!on)); m.setAttribute('aria-label',on?'Couper le son':'Remettre le son');
   if(!on){ try{ speechSynthesis.cancel(); }catch(e){} try{ if(NATIVE&&PLUG.TextToSpeech) PLUG.TextToSpeech.stop().catch(()=>{}); }catch(e){} }
@@ -1407,7 +1417,7 @@ document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==
 function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative(voiceTxt('ready')); return; } if(!voiceOn) return; try{ const u=new SpeechSynthesisUtterance(voiceTxt('ready')); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
 function reset(){
   Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},curveMem:[],cheer:null,gauge:null,liftShown:null,vS:null,veh:null,auto:false,idleSince:0,autoEnd:false,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
-  $('hEco').textContent='0,00 L'; $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
+  $('hEco').textContent='0,00 L'; KITTY.v=-1; kittySet(0); $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
   camH=null; Object.assign(SIM,{v:0,s:0,acc:0,wait:0,done:false});
 }
 /* Appli Android : GPS qui continue en arrière-plan (notification « Pied Levé en route » pendant le trajet) */
@@ -1526,7 +1536,7 @@ $('mVoiceStyle').textContent=VOICES[voiceStyle];
 // « Bien joué ! » : quand un conseil est suivi, petit son, message et gain en euros, aussi dans la bulle
 function chime(){ if(!voiceOn||!actx) return; try{ [784,1046].forEach((f,k)=>{ const o=actx.createOscillator(),gn=actx.createGain(),t=actx.currentTime+k*0.12; o.frequency.value=f; gn.gain.setValueAtTime(0.0001,t); gn.gain.exponentialRampToValueAtTime(0.25,t+0.02); gn.gain.exponentialRampToValueAtTime(0.0001,t+0.22); o.connect(gn).connect(actx.destination); o.start(t); o.stop(t+0.24); }); }catch(e){} }
 let toastT=null;
-function cheer(q){ const gain=Math.max(0.01,eur(Math.max(0,S.eco.saved-(q.saved0||0)))), txt='+'+fe(gain);
+function cheer(q){ const gain=eur(Math.max(0,S.eco.saved-(q.saved0||0))), txt=gain>=0.01?'+'+fe(Math.floor(gain*100)/100):'';
   S.cheer={until:performance.now()+3500,txt}; $('toastAmt').textContent=txt; const t=$('toast'); t.hidden=true; void t.offsetWidth; t.hidden=false;
   clearTimeout(toastT); toastT=setTimeout(()=>{ t.hidden=true; },3000);
   chime(); setTimeout(()=>say(voiceTxt('bravo')),350); logLine(`Bravo : conseil suivi (${txt})`); }
