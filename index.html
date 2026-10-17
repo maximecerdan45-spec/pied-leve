@@ -124,6 +124,11 @@ details.safe strong{color:var(--brake)}
 
 /* ---- marqueurs carte ---- */
 .mk-car{width:46px;height:46px;display:grid;place-items:center}
+.car3d-wrap{width:96px;height:96px;display:grid;place-items:center;perspective:320px;pointer-events:none}
+.car3d{position:relative;width:20px;height:38px;transform-style:preserve-3d;will-change:transform}
+.car3d i{position:absolute;left:0;top:0;display:block;transform-origin:0 0}
+.car3d .halo{width:56px;height:56px;left:-18px;top:-9px;border-radius:50%;background:rgba(28,90,114,.2);border:2px solid rgba(255,255,255,.7);transform:translateZ(.1px)}
+.car3d .shadow{width:30px;height:48px;left:-5px;top:-5px;border-radius:12px;background:rgba(0,0,0,.28);filter:blur(4px);transform:translateZ(.2px)}
 .mk-pill{font:600 13px var(--f-body);background:#fff;color:#111;padding:3px 8px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.25);white-space:nowrap}
 .mk-sign{display:flex;align-items:center;gap:4px}
 .mk-sign i{width:30px;height:30px;border-radius:50%;background:#fff;border:4px solid #D22B1F;display:grid;place-items:center;font:700 13px var(--f-display);color:#111;font-style:normal;box-shadow:0 2px 6px rgba(0,0,0,.25)}
@@ -719,10 +724,9 @@ function draw(g,adv,dtR){
   const W=cv.clientWidth,H=cv.clientHeight; if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){ cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); }
   ctx.setTransform(dpr,0,0,dpr,0,0); ctx.fillStyle=T.ground; ctx.fillRect(0,0,W,H);
   if(!S.path){ ctx.fillStyle=T.muted; ctx.font='500 15px Barlow, system-ui, sans-serif'; ctx.textAlign='center'; ctx.fillText(S.running?'En attente de la route…':'',W/2,H/2); ctx.textAlign='left'; return; }
-  const P=S.path, c0=pointAt(P.pts,adv), ah=pointAt(P.pts,adv+25), V=S.veh, car=V?[V.x,V.y,V.h]:c0;
-  let th=Math.hypot(ah[0]-c0[0],ah[1]-c0[1])>5?Math.atan2(ah[0]-c0[0],ah[1]-c0[1]):car[2];
-  if(camH==null) camH=th; else { let d=th-camH; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI; camH+=d*Math.min(1,dtR*2.5); }
-  const tp=1.6-0.85*clamp(S.v/25,0,1); ppm+=(tp-ppm)*Math.min(1,dtR*1.5);
+  const P=S.path, V=S.veh, car=V?[V.x,V.y,V.h]:pointAt(P.pts,adv);
+  camStep(dtR); if(camH==null) camH=car[2];
+  const tp=1.6-0.85*clamp((V?V.v:S.v)/25,0,1); ppm+=(tp-ppm)*(1-Math.exp(-dtR/1.5));
   const ox=W/2, oy=H*0.76, cs=Math.cos(camH), sn=Math.sin(camH), cx=car[0], cy=car[1];
   const proj=(x,y)=>{ const dx=x-cx,dy=y-cy; return [ox+ppm*(cs*dx-sn*dy), oy-ppm*(sn*dx+cs*dy)]; };
   ctx.setTransform(dpr*ppm*cs,-dpr*ppm*sn,-dpr*ppm*sn,-dpr*ppm*cs,dpr*(ox-ppm*(cs*cx-sn*cy)),dpr*(oy+ppm*(sn*cx+cs*cy)));
@@ -788,6 +792,25 @@ function carEl(){ return el('mk-car','<svg viewBox="0 0 46 46" width="46" height
   +'<path d="M17.2 15.5Q23 13 28.8 15.5L27.6 20.6Q23 19.4 18.4 20.6Z" fill="#D5EAF3"/><rect x="18.4" y="21.6" width="9.2" height="8.6" rx="2" fill="#164B5F"/>'
   +'<path d="M18.4 31.4Q23 32.4 27.6 31.4L28.6 35.2Q23 36.6 17.4 35.2Z" fill="#D5EAF3" opacity=".85"/>'
   +'<circle cx="17.6" cy="8.6" r="1.4" fill="#FFE7A3"/><circle cx="28.4" cy="8.6" r="1.4" fill="#FFE7A3"/></svg>'); }
+// Voiture en 3D (blocs CSS) pour la conduite : l'avant vers le haut, vue inclinée comme la carte
+function car3dEl(){
+  const w=el('car3d-wrap'), c=el('car3d'); w.append(c);
+  const face=(W,H,tf,bg)=>{ const f=document.createElement('i'); f.style.cssText=`width:${W}px;height:${H}px;background:${bg};transform:${tf}`; c.append(f); };
+  // bloc : x,y = coin avant gauche au sol ; w largeur, l longueur, h hauteur, z0 hauteur de départ
+  const box=(x,y,z0,W,L,H,col)=>{ const k=typeof col==='string'?{top:col,front:col,back:col,side:col}:col;
+    face(W,L,`translate3d(${x}px,${y}px,${z0+H}px)`,k.top);
+    face(W,H,`translate3d(${x}px,${y}px,${z0}px) rotateX(90deg)`,k.front);
+    face(W,H,`translate3d(${x}px,${y+L}px,${z0}px) rotateX(90deg)`,k.back);
+    face(L,H,`translate3d(${x}px,${y}px,${z0}px) rotateZ(90deg) rotateX(90deg)`,k.side);
+    face(L,H,`translate3d(${x+W}px,${y}px,${z0}px) rotateZ(90deg) rotateX(90deg)`,k.side); };
+  for(const k of ['halo','shadow']){ const d=document.createElement('i'); d.className=k; c.append(d); }
+  for(const [x,y] of [[-1.5,6],[18.5,6],[-1.5,25],[18.5,25]]) box(x,y,0,3,8,6,'#15191C');
+  box(0,0,2,20,38,8,{top:'#2A7896',front:'#1F6680',back:'#164B5F',side:'#1B5D75'});
+  box(2,12,10,16,17,7,{top:'#1C5A72',front:'#CBE5F0',back:'#A6CEDF',side:'#93BDD1'});
+  box(2.5,-0.4,6,4.5,0.4,2.6,'#FFE7A3'); box(13,-0.4,6,4.5,0.4,2.6,'#FFE7A3');
+  box(2,38,6.5,5,0.4,2.2,'#E0473C'); box(13,38,6.5,5,0.4,2.2,'#E0473C');
+  w._car=c; return w;
+}
 function initMap(){
   if(!window.maplibregl) return;
   try{
@@ -827,7 +850,7 @@ function glSetRoute(P,fit){
 function glDrive(){
   if(!GL) return; if(homeMk){ homeMk.remove(); homeMk=null; }
   glInteractive(false); MAP.setPadding({top:Math.round(innerHeight*0.40),bottom:0,left:0,right:0});
-  if(!carMk) carMk=new maplibregl.Marker({element:carEl(),rotationAlignment:'map',pitchAlignment:'map'});
+  if(!carMk) carMk=new maplibregl.Marker({element:car3dEl(),rotationAlignment:'viewport',pitchAlignment:'viewport'});
   zoomS=17;
 }
 function signEl(e){
@@ -839,13 +862,12 @@ function signEl(e){
 function drawGL(g,adv,dtR,ts){
   let car=null, th=null;
   const V=S.veh; if(!V) return; car=[V.x,V.y,V.h];
-  if(S.path){ const P=S.path, c=pointAt(P.pts,adv), ah=pointAt(P.pts,adv+25); th=Math.hypot(ah[0]-c[0],ah[1]-c[1])>5?Math.atan2(ah[0]-c[0],ah[1]-c[1]):V.h; }
-  else th=S.hd!=null?V.h:null;
-  if(th!=null){ if(camH==null) camH=th; else { let d=th-camH; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI; camH+=d*Math.min(1,dtR*2.5); } }
-  zoomS+=((17.7-1.5*clamp(S.v/25,0,1))-zoomS)*Math.min(1,dtR*1.2);
+  camStep(dtR);
+  zoomS+=((17.7-1.5*clamp(V.v/25,0,1))-zoomS)*(1-Math.exp(-dtR/1.5));
   const ll=llOf(car[0],car[1]);
   MAP.jumpTo({center:ll,bearing:(camH||0)*180/Math.PI,pitch:55,zoom:zoomS});
-  carMk.setLngLat(ll).setRotation(car[2]*180/Math.PI); if(!carMk._map) carMk.addTo(MAP);
+  carMk.setLngLat(ll); if(!carMk._map) carMk.addTo(MAP);
+  const rel=angSigned(car[2],camH??car[2])*180/Math.PI; carMk.getElement()._car.style.transform=`rotateX(${MAP.getPitch().toFixed(1)}deg) rotateZ(${rel.toFixed(2)}deg) scale3d(1.35,1.35,1.35)`;
   if(ts-lastAhead<250) return; lastAhead=ts;
   const P=S.path; if(!P){ MAP.getSource('ahead').setData(EMPTY); clearDriveMarkers(); return; }
   // tracé devant, coloré par zone
@@ -896,29 +918,51 @@ function simTick(dt,g){
 }
 
 /* ===== Position affichée du véhicule =====
-   Entre deux positions GPS, le véhicule avance le long de la route à sa vitesse.
-   À chaque nouvelle position, l'écart avec l'ancienne position affichée est gardé
-   puis résorbé en douceur, au lieu de faire sauter le véhicule. Le cap est lissé aussi. */
-const VEH_TAU=0.45, VEH_TURN=0.12, VEH_JUMP=40;
+   Le véhicule roule le long de la route à une vitesse régulière, lissée.
+   Les positions GPS ne le déplacent pas directement : elles ajustent un peu sa vitesse
+   (au plus ±25 %) pour qu'il rattrape l'écart en douceur. Mouvement linéaire, au prix
+   d'un léger décalage possible. Au-delà de 40 m d'écart, il est replacé directement. */
+const VEH_JUMP=40, VEH_CATCH=2.5, VEH_VTAU=1.2, VEH_LAT=1.5, VEH_TURN=0.3;
 function angSigned(a,b){ let d=a-b; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI; return d; }
-function vehTarget(adv){
-  if(S.path){ const P=S.path, c=pointAt(P.pts,adv), a=pointAt(P.pts,adv+8);
-    const h=Math.hypot(a[0]-c[0],a[1]-c[1])>2?Math.atan2(a[0]-c[0],a[1]-c[1]):c[2]; return [c[0],c[1],h]; }
-  if(S.xy){ const h=S.hd; if(h==null) return [S.xy[0],S.xy[1],null];
-    const d=clamp(S.v*(performance.now()-S.fixT)/1000,0,40); return [S.xy[0]+Math.sin(h)*d,S.xy[1]+Math.cos(h)*d,h]; }
-  return null;
-}
+// Point du trajet à la distance s (avant le départ, on prolonge le premier tronçon)
+function ptAt(pts,s){ if(s>=0||pts.length<2) return pointAt(pts,s);
+  const a=pts[0],b=pts[1],L=Math.max(1e-6,b[2]-a[2]),f=s/L; return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,Math.atan2(b[0]-a[0],b[1]-a[1])]; }
+// Position d'un point projeté sur le début du trajet : distance le long du trajet et écart
+function projOn(pts,x,y){ let best=null;
+  for(let k=0;k<pts.length-1&&pts[k][2]<150;k++){ const [x1,y1,d1]=pts[k],[x2,y2,d2]=pts[k+1],dx=x2-x1,dy=y2-y1,L2=dx*dx+dy*dy; if(L2<0.01) continue;
+    const t=((x-x1)*dx+(y-y1)*dy)/L2, tc=k===0?Math.min(1,t):clamp(t,0,1), d=Math.hypot(x-x1-tc*dx,y-y1-tc*dy);
+    if(!best||d<best.d) best={d,s:d1+tc*(d2-d1)}; }
+  return best; }
+function headAt(pts,s){ const c=ptAt(pts,s), a=ptAt(pts,s+10); return Math.hypot(a[0]-c[0],a[1]-c[1])>2?Math.atan2(a[0]-c[0],a[1]-c[1]):c[2]; }
 function vehPose(adv,dt){
-  const t=vehTarget(adv); if(!t){ S.veh=null; return null; }
-  let V=S.veh;
-  if(!V){ V=S.veh={x:t[0],y:t[1],h:t[2]??0,ox:0,oy:0,fixT:S.fixT}; return V; }
-  if(V.fixT!==S.fixT){ V.fixT=S.fixT; V.ox=V.x-t[0]; V.oy=V.y-t[1];
-    if(Math.hypot(V.ox,V.oy)>VEH_JUMP){ V.ox=0; V.oy=0; } }
-  const k=Math.exp(-dt/VEH_TAU); V.ox*=k; V.oy*=k;
-  V.x=t[0]+V.ox; V.y=t[1]+V.oy;
-  if(t[2]!=null) V.h+=angSigned(t[2],V.h)*(1-Math.exp(-dt/VEH_TURN));
+  const vRef=S.mode==='sim'?SIM.v:(S.vS??S.v);
+  if(!S.path){ // pas de route connue : position GPS brute, lissée
+    if(!S.xy){ S.veh=null; return null; }
+    let V=S.veh; const h=S.hd;
+    if(!V||V.path){ V=S.veh={x:S.xy[0],y:S.xy[1],h:h??0,v:vRef,path:null,s:0,lx:0,ly:0}; }
+    const k=1-Math.exp(-dt/VEH_LAT); V.x+=(S.xy[0]-V.x)*k; V.y+=(S.xy[1]-V.y)*k; if(h!=null) V.h+=angSigned(h,V.h)*(1-Math.exp(-dt/VEH_TURN)); V.v=vRef;
+    return V; }
+  const P=S.path; let V=S.veh;
+  if(!V||!V.path){ const c=ptAt(P.pts,adv); V=S.veh={path:P,s:adv,v:vRef,lx:V?V.x-c[0]:0,ly:V?V.y-c[1]:0,x:c[0],y:c[1],h:headAt(P.pts,adv)}; if(Math.hypot(V.lx,V.ly)>VEH_JUMP){ V.lx=V.ly=0; } }
+  if(V.path!==P){ // nouveau trajet calculé : on reprend là où le véhicule est affiché
+    const pr=projOn(P.pts,V.x,V.y);
+    if(!pr||pr.d>VEH_JUMP||Math.abs(pr.s-adv)>VEH_JUMP){ V.s=adv; V.lx=V.ly=0; V.v=vRef; }
+    else { V.s=pr.s; const c=ptAt(P.pts,pr.s); V.lx=V.x-c[0]; V.ly=V.y-c[1]; }
+    V.path=P; }
+  // vitesse : régulière, ajustée doucement pour rattraper la position GPS
+  const err=adv-V.s;
+  if(Math.abs(err)>VEH_JUMP){ V.s=adv; V.v=vRef; }
+  const lim=0.25*vRef+0.4, want=Math.max(0,vRef+clamp(err/VEH_CATCH,-lim,lim));
+  V.v+=(want-V.v)*(1-Math.exp(-dt/VEH_VTAU));
+  V.s+=V.v*dt;
+  const k=Math.exp(-dt/VEH_LAT); V.lx*=k; V.ly*=k;
+  const c=ptAt(P.pts,V.s); V.x=c[0]+V.lx; V.y=c[1]+V.ly;
+  V.h+=angSigned(headAt(P.pts,V.s),V.h)*(1-Math.exp(-dt/VEH_TURN));
   return V;
 }
+// Cap de la caméra : regarde un peu plus loin devant le véhicule
+function camTarget(){ const V=S.veh; if(!V) return null; if(V.path){ const c=ptAt(V.path.pts,V.s), a=ptAt(V.path.pts,V.s+25); return Math.hypot(a[0]-c[0],a[1]-c[1])>5?Math.atan2(a[0]-c[0],a[1]-c[1]):V.h; } return S.hd!=null?V.h:null; }
+function camStep(dtR){ const th=camTarget(); if(th==null) return; if(camH==null) camH=th; else camH+=angSigned(th,camH)*(1-Math.exp(-dtR/0.6)); }
 
 /* ===== Boucle ===== */
 let lastTs=performance.now();
