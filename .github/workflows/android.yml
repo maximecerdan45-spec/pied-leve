@@ -19,6 +19,8 @@ concurrency:
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      VERSION_CODE: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
 
@@ -41,8 +43,6 @@ jobs:
 
       - name: Fabriquer l'APK
         working-directory: android
-        env:
-          VERSION_CODE: ${{ github.run_number }}
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace

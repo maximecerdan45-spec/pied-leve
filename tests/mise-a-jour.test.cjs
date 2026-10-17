@@ -2,6 +2,7 @@
 // 1. Sur l'écran d'accueil : elle doit se recharger d'elle-même.
 // 2. En plein trajet : elle ne doit PAS se recharger, mais l'annoncer ;
 //    la mise à jour se fait quand on revient à l'accueil après le bilan.
+// 3. Appli Android : elle propose de télécharger la nouvelle version (jamais en plein trajet).
 // Lancement : node tests/mise-a-jour.test.cjs
 const { chromium } = require('playwright');
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
@@ -46,6 +47,32 @@ const returnToApp = page => page.evaluate(() => document.dispatchEvent(new Event
   check(loads === 2 && await page.isVisible('#ovEnd'), 'fin du trajet : le bilan reste affiché');
   await page.click('#bAgain'); await page.waitForTimeout(1500);
   check(loads === 3, '« Nouveau trajet » : la nouvelle version s\'installe');
+
+  // 3. Appli Android : elle ne se recharge pas, elle propose de télécharger la nouvelle version
+  fs.writeFileSync(path.join(DIR, 'app-version.json'), JSON.stringify({ code: 5 }));
+  let latest = 5, apkAsked = 0;
+  const app = await browser.newPage();
+  await app.addInitScript(() => { window.Capacitor = { isNativePlatform: () => true, Plugins: {} };
+    navigator.geolocation.watchPosition = () => 1; navigator.geolocation.clearWatch = () => {}; });
+  await app.route('**/*', r => { const u = r.request().url();
+    if (u.startsWith(url)) return r.continue();
+    if (u.startsWith('https://api.github.com/repos/maximecerdan45-spec/pied-leve/releases/tags/android-latest'))
+      return r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ name: `Pied Levé Android (version ${latest})`, assets: [{ name: 'PiedLeve.apk', browser_download_url: 'https://github.com/maximecerdan45-spec/pied-leve/releases/download/android-latest/PiedLeve.apk' }] }) });
+    if (u.endsWith('/PiedLeve.apk')) { apkAsked++; return r.fulfill({ status: 200, contentType: 'text/plain', body: 'apk' }); }
+    return r.abort(); });
+  await app.goto(url); await app.waitForTimeout(1000);
+  check(!(await app.isVisible('#updBtn')), 'appli Android à jour : aucun message');
+  latest = 6; await returnToApp(app); await app.waitForTimeout(800);
+  check(await app.isVisible('#updBtn') && /toucher pour l’installer/.test(await app.textContent('#updBtn')), 'appli Android : nouvelle version proposée sur l\'accueil');
+  await app.click('#bReal'); await app.waitForTimeout(300); await returnToApp(app); await app.waitForTimeout(800);
+  check(/après le trajet/.test(await app.textContent('#updBtn')), 'appli Android en plein trajet : installation repoussée après le trajet');
+  await app.click('#updBtn'); await app.waitForTimeout(500);
+  check(apkAsked === 0, 'appli Android en plein trajet : toucher le message ne lance rien');
+  await app.click('#bEnd'); await app.waitForTimeout(300); await app.click('#bAgain'); await app.waitForTimeout(300);
+  check(/toucher pour l’installer/.test(await app.textContent('#updBtn')), 'appli Android après le trajet : installation proposée');
+  await app.click('#updBtn'); await app.waitForTimeout(800);
+  check(apkAsked === 1, 'appli Android : toucher le message télécharge la nouvelle version');
 
   await browser.close(); srv.close(); fs.rmSync(DIR, { recursive: true, force: true });
   console.log(failed ? `${failed} vérification(s) en échec` : 'RÉUSSI : l\'appli se met à jour toute seule');
