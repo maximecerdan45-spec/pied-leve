@@ -10,7 +10,15 @@ fs.copyFileSync(path.join(root, 'node_modules/@capacitor/core/dist/capacitor.js'
 const html = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
 const marker = '<script>\n(() => {';
 if (!html.includes(marker)) throw new Error("index.html : script principal introuvable");
-fs.writeFileSync(path.join(out, 'index.html'), html.replace(marker, '<script src="capacitor.js"></script>\n' + marker));
+let page = html.replace(marker, '<script src="capacitor.js"></script>\n' + marker);
+// Démarrage plus rapide de l'appli Android : bibliothèque de carte embarquée (pas d'attente réseau)
+// et polices chargées sans bloquer le démarrage
+for (const f of ['maplibre-gl.js', 'maplibre-gl.css']) fs.copyFileSync(path.join(root, 'node_modules/maplibre-gl/dist', f), path.join(out, f));
+const ML = 'https://unpkg.com/maplibre-gl@4.7.1/dist/';
+if (!page.includes(ML + 'maplibre-gl.js') || !page.includes(ML + 'maplibre-gl.css')) throw new Error('index.html : liens maplibre introuvables');
+page = page.split(ML).join('');
+page = page.replace(/<link href="(https:\/\/fonts\.googleapis\.com\/css2[^"]*)" rel="stylesheet">/, '<link href="$1" rel="stylesheet" media="print" onload="this.media=\'all\'">');
+fs.writeFileSync(path.join(out, 'index.html'), page);
 // Numéro de version de l'appli Android (fourni par GitHub), pour savoir si une version plus récente existe
 const code = parseInt(process.env.VERSION_CODE || '0', 10);
 fs.writeFileSync(path.join(out, 'app-version.json'), JSON.stringify({ code }));

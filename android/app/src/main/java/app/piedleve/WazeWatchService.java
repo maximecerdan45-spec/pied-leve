@@ -94,7 +94,7 @@ public class WazeWatchService extends Service {
             } catch (Exception e) {
                 lastError = String.valueOf(e.getMessage());
             }
-            handler.postDelayed(this, 2000);
+            handler.postDelayed(this, 1000);
         }
     };
 
