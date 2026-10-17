@@ -130,10 +130,11 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#E4E
     lift: '<path d="M14 38h20M24 30V8M15 17l9-9 9 9"/>',
     brake: '<path d="M24 16v12M24 35v.5"/><path d="M6 41L24 6l18 35z"/>',
     stop: '<path d="M17 6h14l10 10v14L31 40H17L7 30V16z"/><path d="M17 23h14"/>',
-    wait: '<circle cx="24" cy="24" r="15"/><path d="M24 15v9l6 4"/>'
+    wait: '<circle cx="24" cy="24" r="15"/><path d="M24 15v9l6 4"/>',
+    kitty: '<ellipse cx="23" cy="26" rx="16" ry="13"/><rect x="38" y="21" width="6" height="9" rx="2"/><path d="M15 15l3-7 5 5M19 18h9M15 38v6M31 38v6"/>'
   };
   const app = () => { try { return $('app').contentWindow.PL_LABO || null; } catch (e) { return null; } };
-  let mult = 2, last = '', lastIcon = '';
+  let mult = 2, last = '', lastIcon = '', lastL2 = '';
 
   // ---- simulation : départ au hasard parmi des villes (ronds-points, virages, stops), ou depuis votre position
   const PLACES = [['Nantes', 47.2184, -1.5536], ['Orléans', 47.9030, 1.9093], ['Tours', 47.3941, 0.6848], ['Angers', 47.4784, -0.5632],
@@ -209,7 +210,9 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#E4E
         const ic = i.icon || 'wait';
         if (ic !== lastIcon) { $('bIco').innerHTML = ICONS[ic] || ICONS.wait;
           if (lastIcon && (ic === 'lift' || ic === 'brake' || ic === 'stop')) { B.classList.add('pulse'); setTimeout(() => B.classList.remove('pulse'), 130); }
-          lastIcon = ic; } }
+          lastIcon = ic; }
+        else if (ic === 'kitty' && i.line2 !== lastL2) { B.classList.add('pulse'); setTimeout(() => B.classList.remove('pulse'), 130); }
+        lastL2 = i.line2; }
       const S = A.S; $('info').textContent = run ? `${where ? 'Près de ' + where + ' · ' : ''}×${mult} · ${Math.round((S.vS ?? S.v ?? 0) * 3.6)} km/h · bulle : ${(i.line1 || '').toLowerCase()} ${i.line2 || ''}` : 'Touchez « Lancer la simulation », puis « Passer sur Waze » pour voir la bulle.';
     }
     requestAnimationFrame(tick);
