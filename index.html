@@ -161,6 +161,78 @@ details.safe strong{color:var(--brake)}
 .stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
 .stat .v{font-family:var(--f-display);font-weight:700;font-size:26px;font-variant-numeric:tabular-nums}
 textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px}
+/* ---- version épurée : une info importante par écran ---- */
+.toprow{display:flex;gap:8px;align-items:center}
+.toprow .search{flex:1;min-width:0}
+.menub{width:58px;height:58px;border-radius:18px;border:0;background:var(--surface);color:var(--ink);box-shadow:var(--shadow);display:grid;place-items:center;cursor:pointer;flex:none}
+.menub svg{width:24px;height:24px}
+.sheet{padding-top:20px;gap:14px}
+.brand{justify-content:space-between}
+.brand h1{font-size:28px}
+.brand small{font-size:15px;color:var(--muted);font-variant-numeric:tabular-nums}
+.btn.big{min-height:62px;font-size:23px;border-radius:18px}
+.hline{display:flex;align-items:center;gap:8px;border:0;background:none;padding:4px 0;font-size:15px;color:var(--muted);cursor:pointer;text-align:left}
+.hline svg{width:18px;height:18px;color:var(--go-strong);flex:none}
+.hline.todo{color:var(--accent);font-weight:600}
+.hline.todo svg{display:none}
+.mhead{display:flex;align-items:center;gap:12px;margin-top:6px}
+.ov .mhead h1{margin:0;font-size:28px}
+.back{width:44px;height:44px;border:0;border-radius:12px;background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;flex:none}
+.back svg{width:22px;height:22px}
+.mgroup{background:var(--surface);border-radius:18px;display:flex;flex-direction:column;overflow:hidden}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;border:0;border-bottom:1px solid var(--line);background:none;color:var(--ink);text-align:left;padding:14px 16px;min-height:58px;cursor:pointer}
+.mgroup>.mrow:last-child{border-bottom:0}
+.mrow b{display:block;font-family:var(--f-display);font-weight:600;font-size:19px}
+.mrow small{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+.mrow small.on{color:var(--go-strong)}
+details.mrow{display:block}
+details.mrow summary{list-style:none;cursor:pointer}
+details.mrow summary::-webkit-details-marker{display:none}
+details.mrow ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px;color:var(--muted)}
+.sw{width:52px;height:30px;border-radius:15px;background:var(--line);position:relative;flex:none;transition:background .2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .2s}
+[aria-checked="true"] .sw{background:var(--go)}
+[aria-checked="true"] .sw::after{transform:translateX(22px)}
+.fine.center{text-align:center;line-height:1.5;margin-top:8px}
+/* conduite : le conseil en haut, la vitesse en bas à gauche, l'arrêt en bas à droite ; le reste seulement en cas de problème */
+.status{top:auto;bottom:calc(var(--sa-bottom) + 126px)}
+.status .chip{display:none}
+.status .chip.err,#cMode{display:inline-block}
+#nextBox{display:none!important}
+.botbar{background:none;box-shadow:none;border-radius:0;align-items:flex-end;gap:10px;padding:0 max(16px,var(--sa-right)) calc(28px + var(--sa-bottom)) max(16px,var(--sa-left));pointer-events:none}
+.botbar>*{pointer-events:auto}
+.botbar .speedo{position:static;flex:none}
+.botbar .eta{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:8px 10px;align-self:center}
+.botbar .eta b{font-size:22px}
+.botbar .eta span{font-size:13px}
+.botbar .round.stop{width:60px;height:60px;margin-left:auto;background:var(--surface);color:var(--brake);box-shadow:var(--shadow)}
+/* guide des autorisations : une étape à la fois */
+.gstep{display:flex;flex-direction:column;gap:8px;font:600 16px var(--f-display);color:var(--muted);margin-top:6px}
+.gbar{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px}
+.gbar i{height:6px;border-radius:3px;background:var(--line)}
+.gbar i.ok{background:var(--go)}
+#ovSetup.all .gstep{display:none}
+#ovSetup:not(.all) .srow:not(.cur){display:none}
+#ovSetup:not(.all) .srow.cur{flex-direction:column;align-items:stretch;gap:12px;padding:22px;border-radius:22px;box-shadow:none}
+#ovSetup:not(.all) .srow.cur .st{display:none}
+#ovSetup:not(.all) .srow.cur b{font-family:var(--f-display);font-size:27px;line-height:1.1}
+#ovSetup:not(.all) .srow.cur small{font-size:16px;line-height:1.45;margin-top:8px}
+#ovSetup:not(.all) .srow.cur .tbtn{align-self:stretch;border-radius:16px;min-height:58px;background:var(--go-strong);color:#fff;box-shadow:none;font:700 21px var(--f-display)}
+/* bilan : l'économie en grand, le détail sur demande */
+.esub{font:600 18px var(--f-display);margin-top:10px!important}
+.hero{background:var(--surface);border-radius:24px;padding:30px 16px 26px;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--go-strong)}
+.hero svg{width:44px;height:44px}
+.hero .v{font:700 64px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.hero .k{font-size:18px;color:var(--muted)}
+.follow{display:flex;flex-direction:column;gap:10px}
+.follow .fr{display:flex;justify-content:space-between;font:600 19px var(--f-display)}
+.follow .bar{height:12px;border-radius:6px;background:var(--line);overflow:hidden}
+.follow .bar i{display:block;height:100%;width:0;background:var(--go);border-radius:6px}
+details.more{display:flex;flex-direction:column}
+details.more summary{cursor:pointer;color:var(--accent);font-weight:600;font-size:17px;text-align:center;padding:12px;list-style:none}
+details.more summary::-webkit-details-marker{display:none}
+details.more[open]>*:not(summary){margin-bottom:12px}
+details.more p{font-size:14px}
 @media (prefers-reduced-motion:reduce){.cue.pulse{animation:none}}
 </style>
 </head>
@@ -172,36 +244,50 @@ textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;
 <!-- ACCUEIL -->
 <div id="ovStart">
   <div class="top">
-    <form class="search" id="fDest" autocomplete="off" role="search">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
-      <input id="qDest" type="search" placeholder="Où allez-vous ?" enterkeyhint="search" aria-label="Destination">
-      <button class="round" id="bSearch" type="submit" aria-label="Chercher"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-    </form>
+    <div class="toprow">
+      <form class="search" id="fDest" autocomplete="off" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input id="qDest" type="search" placeholder="Où allez-vous ?" enterkeyhint="search" aria-label="Destination">
+        <button class="round" id="bSearch" type="submit" aria-label="Chercher"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </form>
+      <button class="menub" id="bMenu" type="button" aria-label="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    </div>
     <div id="destRes" class="dres"></div>
   </div>
   <div class="sheet">
-    <div class="grab"></div>
-    <div class="brand"><h1>Pied <span>Levé</span></h1><small>vous dit quand lever le pied</small></div>
+    <div class="brand"><h1>Pied <span>Levé</span></h1><small id="homeSaved" hidden></small></div>
     <div id="destInfo" class="dinfo" hidden></div>
-    <div class="row2">
-      <button class="btn go" id="bReal">Rouler sans destination</button>
-      <button class="btn ghost" id="bSim">Simulation</button>
-    </div>
-    <div class="install" id="setupBox" hidden><span id="setupTxt">Réglages du téléphone</span><button class="tbtn" id="bSetup">Voir</button></div>
+    <button class="btn go big" id="bReal">Rouler</button>
+    <button class="hline" id="setupBox" type="button" hidden><svg id="setupIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5L19 7"/></svg><span id="setupTxt">Préparer le téléphone</span></button>
     <div class="install" id="installBox" hidden><span>Installer Pied Levé sur l’écran d’accueil</span><button class="tbtn" id="bInstall">Installer</button></div>
-    <p class="fine" id="appVer"></p>
-    <p class="fine" id="installHint" hidden>Pour l’installer : menu ⋮ de Chrome, puis « Installer l’application ».</p>
-    <details class="safe">
-      <summary>Avant de partir</summary>
-      <ul>
-        <li><strong>Téléphone fixé sur un support</strong>, écran visible sans le tenir.</li>
-        <li><strong>Ne touchez pas l’écran en roulant.</strong></li>
-        <li>Ce sont des conseils : la route, la signalisation et le trafic passent avant.</li>
-        <li>Gardez l’appli au premier plan, sinon le GPS se coupe.</li>
-      </ul>
-    </details>
     <p class="msg" id="startMsg"></p>
-    <p class="fine">Carte © OpenFreeMap, données © contributeurs OpenStreetMap. Durées sans trafic. Carburant : estimation pour une citadine thermique.</p>
+  </div>
+</div>
+
+<!-- MENU -->
+<div class="ov" id="ovMenu" hidden>
+  <div class="in">
+    <div class="mhead"><button class="back" id="bMenuBack" type="button" aria-label="Retour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button><h1>Menu</h1></div>
+    <div class="mgroup">
+      <button class="mrow" id="bSetup" type="button" hidden><span><b>Démarrer avec Waze</b><small id="mWaze"></small></span></button>
+      <button class="mrow" id="bSound" type="button" role="switch" aria-checked="true"><span><b>Voix</b></span><i class="sw" aria-hidden="true"></i></button>
+    </div>
+    <div class="mgroup">
+      <button class="mrow" id="bSim" type="button"><span><b>Essayer en simulation</b></span></button>
+      <details class="mrow safe"><summary><b>Conseils de sécurité</b></summary>
+        <ul>
+          <li><strong>Téléphone fixé sur un support</strong>, écran visible sans le tenir.</li>
+          <li><strong>Ne touchez pas l’écran en roulant.</strong></li>
+          <li>Ce sont des conseils : la route, la signalisation et le trafic passent avant.</li>
+        </ul>
+      </details>
+    </div>
+    <div class="mgroup">
+      <button class="mrow" id="bAdv" type="button" hidden><span><b>La bulle ne s’affiche pas ?</b><small>Réglages avancés du téléphone</small></span></button>
+      <button class="mrow" id="bLastLog" type="button"><span><b>Copier le dernier journal</b><small id="mLog">Pour l’envoyer à Claude</small></span></button>
+    </div>
+    <p class="fine" id="installHint" hidden>Pour installer Pied Levé : menu ⋮ de Chrome, puis « Installer l’application ».</p>
+    <p class="fine center"><span id="appVer"></span><br>Carte © OpenFreeMap, données © contributeurs OpenStreetMap. Durées sans trafic. Carburant : estimation pour une citadine thermique.</p>
   </div>
 </div>
 
@@ -217,47 +303,58 @@ textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;
     <span class="chip" id="cMap">Carte : –</span>
     <span class="chip" id="cMode" hidden>Simulation</span>
   </div>
-  <div class="speedo">
-    <div class="spdc"><div class="spd" id="hSpd">0</div><div class="unit">km/h</div></div>
-    <div class="lim" id="hLim">?</div>
-  </div>
   <div class="nextp" id="nextBox" hidden><b id="hNext">–</b><span id="hNextD"></span></div>
   <div class="botbar">
-    <button class="round stop" id="bEnd" aria-label="Terminer le trajet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-    <div class="eta"><b id="hEtaT">Pied Levé</b><span id="hEtaI">sans destination</span></div>
-    <div class="eco"><b id="hEco">0,00 L</b><span>économisés</span></div>
-    <button class="round" id="bSound" aria-pressed="true" aria-label="Couper la voix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h4l5-4v14l-5-4H4z"/><path id="snd2" d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/></svg></button>
+    <div class="speedo">
+      <div class="spdc"><div class="spd" id="hSpd">0</div><div class="unit">km/h</div></div>
+      <div class="lim" id="hLim">?</div>
+    </div>
+    <div class="eta" id="etaBox" hidden><b id="hEtaT">Pied Levé</b><span id="hEtaI">sans destination</span></div>
+    <span id="hEco" hidden>0,00 L</span>
+    <button class="round stop" id="bEnd" aria-label="Terminer le trajet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
 </div>
 
 <div class="ov" id="ovSetup" hidden>
   <div class="in">
-    <h1>Préparer votre <span>téléphone</span></h1>
-    <p>Pour que Pied Levé vous conseille même quand Waze est devant, Android demande quelques autorisations. Touchez chaque bouton, autorisez, puis revenez ici.</p>
+    <div class="gstep" id="setupStep"><span id="setupStepTxt"></span><div class="gbar" id="setupBar"></div></div>
+    <h1 id="setupTitle">Préparer le <span>téléphone</span></h1>
+    <p id="setupIntro">Pour vous conseiller même quand Waze est devant, Android demande quelques autorisations.</p>
     <div class="setup" id="setupList"></div>
-    <button class="btn go" id="bSetupDone">C’est prêt</button>
-    <p class="fine">Vous pourrez revenir ici depuis l’accueil : « Réglages du téléphone ».</p>
+    <button class="btn ghost" id="bSetupDone">C’est prêt</button>
   </div>
 </div>
 <div class="ov" id="ovEnd" hidden>
   <div class="in">
-    <h1>Bilan du <span>trajet</span></h1>
-    <div class="stats">
-      <div class="stat"><div class="k">Distance</div><div class="v" id="eDist">–</div></div>
-      <div class="stat"><div class="k">Durée</div><div class="v" id="eTime">–</div></div>
-      <div class="stat"><div class="k">Conseils « levez le pied »</div><div class="v" id="eCues">–</div></div>
-      <div class="stat"><div class="k">Conseils suivis</div><div class="v" id="eFol">–</div></div>
-      <div class="stat"><div class="k">Freinages forts</div><div class="v" id="eHard">–</div></div>
-      <div class="stat"><div class="k">Obstacles passés</div><div class="v" id="ePass">–</div></div>
-      <div class="stat"><div class="k">Carburant estimé</div><div class="v" id="eFuel">–</div></div>
-      <div class="stat"><div class="k">Économisé (estimation)</div><div class="v" id="eSaved">–</div></div>
+    <p class="esub" id="eSub">Trajet terminé</p>
+    <div class="hero">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21c0-9 5-15 15-16-1 10-7 15-15 16z"/><path d="M5 21l8-8"/></svg>
+      <div class="v" id="eSaved">–</div>
+      <div class="k">économisés sur ce trajet</div>
     </div>
-    <p id="eEcoTxt" style="font-size:14px"></p>
-    <h2>Journal</h2>
-    <p>Copiez-le et collez-le dans la conversation avec Claude pour analyser le test.</p>
-    <textarea id="eLog" readonly></textarea>
-    <button class="btn" id="bCopy">Copier le journal</button>
-    <button class="btn ghost" id="bAgain">Nouveau trajet</button>
+    <div class="follow">
+      <div class="fr"><span>Conseils suivis</span><span id="eFolN">–</span></div>
+      <div class="bar"><i id="eFolBar"></i></div>
+      <p id="eMsg"></p>
+    </div>
+    <details class="more">
+      <summary>Voir le détail</summary>
+      <div class="stats">
+        <div class="stat"><div class="k">Distance</div><div class="v" id="eDist">–</div></div>
+        <div class="stat"><div class="k">Durée</div><div class="v" id="eTime">–</div></div>
+        <div class="stat"><div class="k">Conseils « levez le pied »</div><div class="v" id="eCues">–</div></div>
+        <div class="stat"><div class="k">Conseils suivis</div><div class="v" id="eFol">–</div></div>
+        <div class="stat"><div class="k">Freinages forts</div><div class="v" id="eHard">–</div></div>
+        <div class="stat"><div class="k">Obstacles passés</div><div class="v" id="ePass">–</div></div>
+        <div class="stat"><div class="k">Carburant estimé</div><div class="v" id="eFuel">–</div></div>
+      </div>
+      <p id="eEcoTxt"></p>
+      <h2>Journal</h2>
+      <p>Copiez-le et collez-le dans la conversation avec Claude pour analyser le trajet.</p>
+      <textarea id="eLog" readonly></textarea>
+      <button class="btn ghost" id="bCopy">Copier le journal</button>
+    </details>
+    <button class="btn" id="bAgain">Terminer</button>
   </div>
 </div>
 
@@ -472,7 +569,7 @@ async function reroute(lat,lon){
 const hm=t=>{ const d=new Date(t); return `${d.getHours()}h${String(d.getMinutes()).padStart(2,'0')}`; };
 function shortName(r){ const a=r.address||{}; const main=r.name||(r.display_name||'').split(',')[0]; const city=a.city||a.town||a.village||a.municipality||''; return {main, sub:(r.display_name||'').split(',').slice(1,4).join(',').trim(), city}; }
 function renderPlan(){
-  const box=$('destInfo'); box.textContent=''; box.hidden=!PLAN; $('bReal').textContent=PLAN?'C’est parti':'Rouler sans destination'; glSetRoute(PLAN,true); if(!PLAN) return;
+  const box=$('destInfo'); box.textContent=''; box.hidden=!PLAN; $('bReal').textContent=PLAN?'C’est parti':'Rouler'; glSetRoute(PLAN,true); if(!PLAN) return;
   const b=document.createElement('b'); b.textContent=PLAN.dest.name;
   const sp=document.createElement('span'); sp.textContent=`${nf(PLAN.distance/1000,1)} km · environ ${Math.max(1,Math.round(PLAN.duration/60))} min (sans trafic)`;
   const x=document.createElement('button'); x.className='tbtn'; x.type='button'; x.textContent='Retirer'; x.onclick=()=>{ PLAN=null; renderPlan(); };
@@ -773,7 +870,15 @@ function setupItems(){ const r=SET.st; return r?SETUP.filter(i=>(i.k!=='xiaomi'|
 function setupMissing(){ const r=SET.st; return r?setupItems().filter(i=>!i.optional&&!r[i.k]).length:0; }
 function setupRender(){
   const r=SET.st; if(!r) return; const list=$('setupList'); list.textContent='';
-  setupItems().forEach((it,n)=>{ const ok=!!r[it.k], row=document.createElement('div'); row.className='srow'+(ok?' ok':'');
+  const items=setupItems(), cur=items.findIndex(i=>!r[i.k]);
+  // guide : une étape à la fois (« Étape 2 sur 4 »), la liste complète seulement dans « La bulle ne s'affiche pas ? »
+  $('setupStepTxt').textContent=cur<0?'Toutes les étapes sont faites':`Étape ${cur+1} sur ${items.length}`;
+  $('setupBar').innerHTML=items.map(i=>`<i class="${r[i.k]?'ok':''}"></i>`).join('');
+  const all=$('ovSetup').classList.contains('all');
+  $('setupTitle').hidden=!all&&cur>=0; $('setupIntro').hidden=!all&&cur>=0;
+  if(!all&&cur<0){ $('setupTitle').innerHTML='Tout est <span>prêt</span>'; $('setupIntro').textContent='Pied Levé vous conseillera même quand Waze est devant.'; }
+  else if(all){ $('setupTitle').innerHTML='Réglages du <span>téléphone</span>'; $('setupIntro').textContent='Si la bulle ne s’affiche pas ou si Pied Levé ne démarre pas avec Waze, vérifiez chaque ligne.'; }
+  items.forEach((it,n)=>{ const ok=!!r[it.k], row=document.createElement('div'); row.className='srow'+(ok?' ok':'')+(n===cur?' cur':'');
     row.innerHTML=`<div class="st">${ok?'✓':n+1}</div><div class="tx"><b></b><small></small></div><button class="tbtn" type="button"></button>`;
     row.querySelector('b').textContent=it.t; row.querySelector('small').textContent=ok?(it.k==='autostart'?(r.watch&&!r.watch.running?'Activé, mais la veille ne tourne pas : touchez « Couper » puis « Activer ». Sur Xiaomi, autorisez aussi « Démarrage automatique » pour Pied Levé.':`Activé : le trajet démarre quand Waze s’ouvre.${watchTxt(r.watch)}`):'C’est fait.'):it.d;
     const bt=row.querySelector('button'); bt.textContent=it.manual&&SET.first[it.k]===false?'C’est fait':it.b;
@@ -783,14 +888,16 @@ function setupRender(){
         else if(!r.usage) B.openSetting({what:'usage'}).catch(()=>{}); else B.setAutoStart({on:true}).catch(()=>{}).finally(()=>setupCheck().then(setupRender)); return; }
       PLUG.Bubble.openSetting({what:it.k,first:SET.first[it.k]!==false}).catch(()=>{}); SET.first[it.k]=false; setupRender(); };
     list.append(row); });
-  const miss=setupMissing(); $('bSetupDone').textContent=miss?'Continuer sans tout autoriser':'C’est prêt';
-  $('setupTxt').textContent=miss?`Réglages du téléphone · ${miss} à faire`:'Réglages du téléphone · tout est prêt ✓';
-  $('setupBox').hidden=false;
+  const miss=setupMissing(); $('bSetupDone').textContent=miss?'Plus tard':'C’est prêt';
+  $('setupTxt').textContent=miss?`Préparer le téléphone · ${miss} à faire`:r.autostart?'Démarre tout seul avec Waze':'Téléphone prêt';
+  $('setupBox').hidden=false; $('setupBox').classList.toggle('todo',!!miss);
+  $('bSetup').hidden=!r.waze; $('bAdv').hidden=false;
+  const mw=$('mWaze'); mw.textContent=r.autostart?'Activé':'Désactivé'; mw.className=r.autostart?'on':'';
 }
-function setupOpen(){ $('ovSetup').hidden=false; setupRender(); clearInterval(SET.timer);
+function setupOpen(all){ $('ovSetup').classList.toggle('all',all===true); $('ovSetup').hidden=false; setupRender(); clearInterval(SET.timer);
   SET.timer=setInterval(()=>{ if($('ovSetup').hidden){ clearInterval(SET.timer); return; } setupCheck().then(setupRender); },1000); }
 function setupClose(){ $('ovSetup').hidden=true; clearInterval(SET.timer); lsSet('pl-setup-seen','1'); setupCheck().then(setupRender); }
-$('bSetupDone').onclick=setupClose; $('bSetup').onclick=setupOpen;
+$('bSetupDone').onclick=setupClose; $('bSetup').onclick=()=>setupOpen(); $('setupBox').onclick=()=>setupOpen(); $('bAdv').onclick=()=>setupOpen(true);
 // Au lancement : l'écran s'ouvre tout seul la première fois, ou s'il manque la position
 setupCheck().then(r=>{ if(!r) return; setupRender(); if(lsGet('pl-setup-seen')!=='1'||!r.location) setupOpen(); });
 function bubbleBoxRefresh(){ setupCheck().then(setupRender); }
@@ -850,7 +957,9 @@ function beep(f,n){ if(!voiceOn||!actx) return; try{ for(let k=0;k<n;k++){ const
 function speakNative(txt){ const T=PLUG.TextToSpeech; if(!T) return false; T.stop().catch(()=>{}).finally(()=>T.speak({text:txt,lang:'fr-FR',rate:1.05,category:'playback'}).catch(()=>{})); return true; }
 function say(txt){ if(!voiceOn) return; if(NATIVE&&PLUG.TextToSpeech){ const now=performance.now(); if(now-S.lastSay<2500) return; S.lastSay=now; speakNative(txt); return; }
   if(!('speechSynthesis' in window)) return; const now=performance.now(); if(now-S.lastSay<2500) return; S.lastSay=now; try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(txt); u.lang='fr-FR'; u.rate=1.05; setTimeout(()=>speechSynthesis.speak(u),350); }catch(e){} }
-$('bSound').onclick=()=>{ voiceOn=!voiceOn; const b=$('bSound'); b.setAttribute('aria-pressed',String(voiceOn)); b.setAttribute('aria-label',voiceOn?'Couper la voix':'Activer la voix'); b.classList.toggle('muted',!voiceOn); $('snd2').style.display=voiceOn?'':'none'; };
+function setVoice(on){ voiceOn=on; $('bSound').setAttribute('aria-checked',String(on)); try{ localStorage.setItem('pl-voice',on?'1':'0'); }catch(e){} }
+try{ if(localStorage.getItem('pl-voice')==='0') setVoice(false); }catch(e){}
+$('bSound').onclick=()=>setVoice(!voiceOn);
 
 /* ===== Affichage ===== */
 const cv=$('cv'), ctx=cv.getContext('2d'); let T={}, camH=null, ppm=1.4, dpr=Math.min(2,window.devicePixelRatio||1);
@@ -1168,7 +1277,7 @@ function start(mode,opt){ opt=opt||{};
   if(!window.isSecureContext){ $('startMsg').textContent='Cette page doit être ouverte en https pour accéder au GPS.'; return; }
   if(!navigator.geolocation){ $('startMsg').textContent='Ce navigateur ne donne pas accès à la position.'; return; }
   reset(); S.mode=mode; S.running=true; if(!opt.quiet) unlockAudio(); keepAwake();
-  $('ovStart').hidden=true; $('ovEnd').hidden=true; $('drive').hidden=false; $('cMode').hidden=mode!=='sim'; glDrive();
+  $('ovStart').hidden=true; $('ovMenu').hidden=true; $('ovEnd').hidden=true; $('drive').hidden=false; $('etaBox').hidden=!PLAN; $('cMode').hidden=mode!=='sim'; glDrive();
   logLine(`Démarrage (${mode==='sim'?'simulation':'route réelle'})`);
   if(PLAN) logLine(`Destination : ${PLAN.dest.name} (${nf(PLAN.distance/1000,1)} km, ${Math.round(PLAN.duration/60)} min estimées sans trafic)`);
   setMap('–'); setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert');
@@ -1191,6 +1300,11 @@ function end(){
   $('eHard').textContent=L.hard; $('ePass').textContent=L.passes.length;
   const E=S.eco, l100=E.dist>500?E.fuel/E.dist*100000:null, pct=E.fuel+E.saved>0?E.saved/(E.fuel+E.saved)*100:0;
   $('eFuel').textContent=`${nf(E.fuel,2)} L`; $('eSaved').textContent=`${nf(E.saved,2)} L`;
+  $('eSub').textContent=`Trajet terminé · ${nf(L.dist/1000,1)} km · ${Math.max(1,Math.round(dur/60))} min${S.mode==='sim'?' · simulation':''}`;
+  $('eFolN').textContent=L.cues?`${L.fol} sur ${L.cues}`:'–'; $('eFolBar').style.width=L.cues?`${Math.round(L.fol/L.cues*100)}%`:'0';
+  $('eMsg').textContent=!L.cues?'Aucun conseil sur ce trajet.':L.hard===0?'Aucun freinage fort, bravo.':L.hard===1?'Un seul freinage fort.':`${L.hard} freinages forts : levez le pied un peu plus tôt.`;
+  if(S.mode==='real'&&E.saved>0){ try{ localStorage.setItem('pl-total-saved',String((+localStorage.getItem('pl-total-saved')||0)+E.saved)); }catch(e){} }
+  homeSaved();
   $('eEcoTxt').textContent=`Estimation par le modèle d’une citadine thermique, à partir de votre vitesse GPS : ${l100!=null?`environ ${nf(l100,1)} L/100 km, `:''}${nf(E.saved,2)} L économisés en roulant pied levé sur ${nf(E.coast/1000,1)} km (≈ ${nf(pct,0)} % du carburant, ${nf(E.saved*PRICE,2)} € à ${nf(PRICE,2)} €/L). Ce n’est pas une mesure réelle.`;
   const over=L.passes.filter(p=>p.vt>0&&p.v>p.vt+5).length;
   const txt=[`Pied Levé, journal du ${new Date().toLocaleString('fr-FR')}`,`Mode : ${S.mode==='sim'?'simulation':'route réelle'}`,
@@ -1200,6 +1314,14 @@ function end(){
   $('ovEnd').hidden=false; applyUpdate();
 }
 $('bReal').onclick=()=>start('real'); $('bSim').onclick=()=>start('sim');
+/* Menu : tout ce qui ne sert pas à chaque trajet */
+$('bMenu').onclick=()=>{ $('ovMenu').hidden=false; }; $('bMenuBack').onclick=()=>{ $('ovMenu').hidden=true; };
+$('bLastLog').onclick=async()=>{ let t=null; try{ t=localStorage.getItem('piedleve-dernier-journal'); }catch(e){}
+  const m=$('mLog'); if(!t){ m.textContent='Aucun trajet pour l’instant'; return; }
+  try{ await navigator.clipboard.writeText(t); m.textContent='Journal copié : collez-le dans la conversation'; }catch(e){ m.textContent='Copie impossible sur ce téléphone'; } };
+// Économies cumulées (trajets réels), affichées sur l'accueil
+function homeSaved(){ let t=0; try{ t=+localStorage.getItem('pl-total-saved')||0; }catch(e){} const h=$('homeSaved'); h.hidden=t<0.01; h.textContent=`${nf(t,t<10?2:1)} L économisés`; }
+homeSaved();
 $('bEnd').onclick=end; $('bAgain').onclick=()=>{ if(UPD.ready&&!NATIVE){ location.reload(); return; } $('ovEnd').hidden=true; $('drive').hidden=true; $('ovStart').hidden=false; glHome(); applyUpdate(); };
 
 /* ===== Mise à jour automatique =====
