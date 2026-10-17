@@ -39,7 +39,8 @@ public class WazeWatchService extends Service {
     static volatile String lastError = "";
     static volatile long lastWazeSeen = 0;
     private String foreground = "";
-    private boolean handledThisWazeSession = false;
+    // appli au premier plan lors de la vérification précédente (pour repérer le passage à Waze)
+    private String prevForeground = "";
 
     /**
      * « Accès aux données d'utilisation » accordé ? Selon les téléphones, Android répond « autorisé »
@@ -164,19 +165,17 @@ public class WazeWatchService extends Service {
         }
         if (best != null) foreground = best;
         lastForeground = foreground;
-        if (!WAZE.equals(foreground)) {
-            // Waze n'est plus devant (sauf si c'est Pied Levé lui-même) : la prochaine ouverture de Waze relancera un trajet
-            if (!getPackageName().equals(foreground)) handledThisWazeSession = false;
-            return;
-        }
+        boolean arrived = WAZE.equals(foreground) && !WAZE.equals(prevForeground);
+        prevForeground = foreground;
+        if (!WAZE.equals(foreground)) return;
         lastWazeSeen = now;
-        if (handledThisWazeSession) return;
-        if (BubblePlugin.tripActive) {
-            handledThisWazeSession = true;
-            lastError = "Waze ouvert alors qu'un trajet était déjà en cours";
+        // On ne réagit qu'au moment où Waze passe devant (quelle que soit l'appli d'avant, Pied Levé compris)
+        if (!arrived) return;
+        if (BubblePlugin.tripActive) return; // trajet déjà en cours (cas normal après un démarrage automatique)
+        if (now - BubblePlugin.lastManualEnd < 120000) {
+            lastError = "Waze revenu devant juste après un trajet terminé à la main : pas de relance";
             return;
         }
-        handledThisWazeSession = true;
         final long launchAt = now;
         Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (i == null) return;

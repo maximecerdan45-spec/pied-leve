@@ -618,7 +618,7 @@ function ecoStep(v0,v1,dt){
 // Trajet démarré tout seul : il s'arrête tout seul après 10 minutes à l'arrêt (batterie)
 function autoIdle(){ if(!S.auto||!S.running) return; const now=Date.now();
   if((S.vS??S.v)>1.5){ S.idleSince=0; return; } if(!S.idleSince){ S.idleSince=now; return; }
-  if(now-S.idleSince>600000){ logLine('Arrêt automatique : 10 minutes à l’arrêt'); end(); } }
+  if(now-S.idleSince>600000){ logLine('Arrêt automatique : 10 minutes à l’arrêt'); S.autoEnd=true; end(); } }
 function onFix(p){ setTimeout(autoIdle,0); const F=S.fl, t=performance.now(); if(F){ if(F.lastFix) F.fixGap+=t-F.lastFix; F.lastFix=t; F.fixes++; const sp=p&&p.coords&&p.coords.speed; if(sp!=null&&!isNaN(sp)) F.speedGps++; }
   onFixCore(p); backgroundTick(); }
 function onFixCore(p){
@@ -743,7 +743,7 @@ function bubbleInfo(g){
 }
 // Le contenu est toujours transmis à Android, qui affiche la bulle de lui-même quand l'appli passe derrière
 function bubbleSet(g){ BUB.info=bubbleInfo(g); const k=JSON.stringify(BUB.info); if(NATIVE&&PLUG.Bubble&&k!==BUB.last){ BUB.last=k; try{ PLUG.Bubble.update(BUB.info).catch(()=>{}); }catch(e){} } }
-function bubbleArm(on){ const B=PLUG.Bubble; if(!NATIVE||!B) return; try{ B.arm({active:on,...BUB.info}).catch(()=>{}); }catch(e){} } // un souci de bulle ne doit jamais bloquer le trajet
+function bubbleArm(on,manual){ const B=PLUG.Bubble; if(!NATIVE||!B) return; try{ B.arm({active:on,manual:!!manual,...BUB.info}).catch(()=>{}); }catch(e){} } // un souci de bulle ne doit jamais bloquer le trajet
 async function bubbleReport(){ const B=PLUG.Bubble; if(!NATIVE||!B) return;
   // le bilan est déjà affiché : on ajoute la ligne aussi au journal visible
   const add=()=>{ try{ const ta=$('eLog'); if(ta) ta.value+='\n'+S.log.lines[S.log.lines.length-1]; }catch(e){} };
@@ -1141,7 +1141,7 @@ async function keepAwake(){ try{ if(NATIVE&&PLUG.KeepAwake){ await PLUG.KeepAwak
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.running) keepAwake(); else if(S.running) logLine('Page passée en arrière-plan'); });
 function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative('Pied Levé est prêt.'); return; } try{ const u=new SpeechSynthesisUtterance('Pied Levé est prêt.'); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
 function reset(){
-  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},vS:null,veh:null,auto:false,idleSince:0,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
+  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},vS:null,veh:null,auto:false,idleSince:0,autoEnd:false,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
   $('hEco').textContent='0,00 L'; $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
   camH=null; Object.assign(SIM,{v:0,s:0,acc:0,wait:0,done:false});
 }
@@ -1182,7 +1182,7 @@ function start(mode,opt){ opt=opt||{};
 function end(){
   if(!S.running) return; S.running=false; flReport();
   if(S.watch!=null){ navigator.geolocation.clearWatch(S.watch); S.watch=null; }
-  stopNativeGps(); bubbleHide(); bubbleReport(); watchReport(); bubbleArm(false);
+  stopNativeGps(); bubbleHide(); bubbleReport(); watchReport(); bubbleArm(false,!S.autoEnd);
   try{ wake&&wake.release(); }catch(e){} try{ if(NATIVE&&PLUG.KeepAwake) PLUG.KeepAwake.allowSleep(); }catch(e){}
   const L=S.log, dur=(Date.now()-L.t0)/1000;
   $('eDist').textContent=`${nf(L.dist/1000,1)} km`;
