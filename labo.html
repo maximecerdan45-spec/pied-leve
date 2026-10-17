@@ -68,6 +68,11 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#E4E
     <button class="b" type="button" data-m="2" aria-pressed="true">×2</button>
     <button class="b" type="button" data-m="4" aria-pressed="false">×4</button>
   </div>
+  <button class="b" id="bNext" type="button" hidden>Autre route</button>
+  <div class="seg" role="group" aria-label="Départ de la simulation">
+    <button class="b" type="button" data-at="hasard" aria-pressed="true">Au hasard</button>
+    <button class="b" type="button" data-at="moi" aria-pressed="false">Ma position</button>
+  </div>
   <button class="b" id="bWaze" type="button" aria-pressed="false">Passer sur Waze</button>
 </div>
 <p class="info" id="info">Touchez « Lancer la simulation », puis « Passer sur Waze » pour voir la bulle.</p>
@@ -105,13 +110,27 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#E4E
   const app = () => { try { return $('app').contentWindow.PL_LABO || null; } catch (e) { return null; } };
   let mult = 2, last = '', lastIcon = '';
 
-  // ---- simulation
-  $('bRun').onclick = () => { const A = app(); if (!A) { $('info').textContent = 'L’appli se charge encore, réessayez dans un instant.'; return; }
-    if (A.S.running) { A.end(); return; }
-    A.start('sim'); A.SIM.mult = mult; };
-  document.querySelectorAll('.seg .b').forEach(b => b.onclick = () => {
-    mult = +b.dataset.m; document.querySelectorAll('.seg .b').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  // ---- simulation : départ au hasard parmi des villes (ronds-points, virages, stops), ou depuis votre position
+  const PLACES = [['Nantes', 47.2184, -1.5536], ['Orléans', 47.9030, 1.9093], ['Tours', 47.3941, 0.6848], ['Angers', 47.4784, -0.5632],
+    ['Rennes', 48.1173, -1.6778], ['Le Mans', 48.0061, 0.1996], ['Poitiers', 46.5802, 0.3404], ['Bourges', 47.0810, 2.3988],
+    ['Chartres', 48.4439, 1.4890], ['Blois', 47.5861, 1.3359], ['Montargis', 47.9970, 2.7330], ['La Roche-sur-Yon', 46.6705, -1.4260],
+    ['Vannes', 47.6582, -2.7608], ['Niort', 46.3237, -0.4588], ['Dijon', 47.3220, 5.0415], ['Clermont-Ferrand', 45.7772, 3.0870],
+    ['Laval', 48.0707, -0.7734], ['Cholet', 47.0600, -0.8790], ['Saumur', 47.2600, -0.0769], ['Vierzon', 47.2220, 2.0690]];
+  let at = 'hasard', where = '';
+  const pick = () => { const [n, la, lo] = PLACES[Math.floor(Math.random() * PLACES.length)];
+    const r = 300 + Math.random() * 1500, a = Math.random() * 2 * Math.PI; // à quelques centaines de mètres du centre, dans une direction au hasard
+    where = n; return { lat: la + r * Math.cos(a) / 111320, lon: lo + r * Math.sin(a) / (111320 * Math.cos(la * Math.PI / 180)), name: `une route au hasard près de ${n}` }; };
+  const go = () => { const A = app(); if (!A) { $('info').textContent = 'L’appli se charge encore, réessayez dans un instant.'; return; }
+    if (A.S.running) A.end();
+    if (at === 'hasard') A.start('sim', { at: pick() }); else { where = 'votre position'; A.start('sim'); }
+    A.SIM.mult = mult; };
+  $('bRun').onclick = () => { const A = app(); if (A && A.S.running) { A.end(); return; } go(); };
+  $('bNext').onclick = go;
+  document.querySelectorAll('.seg .b[data-m]').forEach(b => b.onclick = () => {
+    mult = +b.dataset.m; document.querySelectorAll('.seg .b[data-m]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     const A = app(); if (A) A.SIM.mult = mult; });
+  document.querySelectorAll('.seg .b[data-at]').forEach(b => b.onclick = () => {
+    at = b.dataset.at; document.querySelectorAll('.seg .b[data-at]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); });
 
   // ---- faux Waze
   const setWaze = on => { $('waze').hidden = !on; $('bWaze').setAttribute('aria-pressed', String(on)); $('bWaze').textContent = on ? 'Revenir sur Pied Levé' : 'Passer sur Waze';
@@ -139,7 +158,7 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#E4E
   function tick() {
     const A = app();
     if (A) {
-      const run = A.S.running; $('bRun').textContent = run ? 'Arrêter' : 'Lancer la simulation'; $('bRun').classList.toggle('go', !run);
+      const run = A.S.running; $('bRun').textContent = run ? 'Arrêter' : 'Lancer la simulation'; $('bRun').classList.toggle('go', !run); $('bNext').hidden = !run || at !== 'hasard';
       if (A.SIM.mult !== mult && run) A.SIM.mult = mult;
       const i = A.bubble || { color: '#3A4440', icon: 'wait', line1: 'PIED LEVÉ', line2: '' };
       const k = JSON.stringify(i);
@@ -150,7 +169,7 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#E4E
         if (ic !== lastIcon) { $('bIco').innerHTML = ICONS[ic] || ICONS.wait;
           if (lastIcon && (ic === 'lift' || ic === 'brake' || ic === 'stop')) { B.classList.add('pulse'); setTimeout(() => B.classList.remove('pulse'), 130); }
           lastIcon = ic; } }
-      const S = A.S; $('info').textContent = run ? `Simulation ×${mult} · ${Math.round((S.vS ?? S.v ?? 0) * 3.6)} km/h · bulle : ${(i.line1 || '').toLowerCase()} ${i.line2 || ''}` : 'Touchez « Lancer la simulation », puis « Passer sur Waze » pour voir la bulle.';
+      const S = A.S; $('info').textContent = run ? `${where ? 'Près de ' + where + ' · ' : ''}×${mult} · ${Math.round((S.vS ?? S.v ?? 0) * 3.6)} km/h · bulle : ${(i.line1 || '').toLowerCase()} ${i.line2 || ''}` : 'Touchez « Lancer la simulation », puis « Passer sur Waze » pour voir la bulle.';
     }
     requestAnimationFrame(tick);
   }
