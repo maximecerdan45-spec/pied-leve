@@ -40,7 +40,9 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
       Bubble: { hasPermission: () => Promise.resolve({ granted: __log.askedPerm > 0 }), requestPermission: () => { __log.askedPerm++; return Promise.resolve(); },
         show: o => { __log.bubble.push(['show', o.line1, o.line2]); return Promise.resolve(); },
         update: o => { __log.bubble.push(['update', o.line1, o.line2]); return Promise.resolve(); },
-        hide: () => { __log.bubble.push(['hide']); return Promise.resolve(); } },
+        hide: () => { __log.bubble.push(['hide']); return Promise.resolve(); },
+        arm: o => { __log.bubble.push(['arm', o.active]); return Promise.resolve(); },
+        status: () => Promise.resolve({ granted: true, pauses: 1, shows: 1, lastError: '' }) },
       KeepAwake: { keepAwake: () => { __log.awake++; return Promise.resolve(); }, allowSleep: () => Promise.resolve() } } };
     navigator.geolocation.watchPosition = () => { window.__webGps = true; return 1; };
   });
@@ -66,14 +68,18 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   for (; s < 990; s += V) { await page.evaluate(f => __gps(f), fix(s)); await page.waitForTimeout(150); }
   const spoken = await page.evaluate(() => __log.spoken);
   const bub = await page.evaluate(() => __log.bubble);
-  check(bub.length && bub[0][0] === 'show', 'appli passée derrière Waze : la bulle apparaît');
+  check(bub.some(b => b[0] === 'show'), 'appli passée derrière Waze : la bulle apparaît');
   check(bub.some(b => b[1] === 'LEVEZ LE PIED' && /m$/.test(b[2] || '')), `la bulle affiche le conseil et la distance (${(bub.find(b => b[1] === 'LEVEZ LE PIED') || []).slice(1).join(' · ') || 'rien'})`);
   check(spoken.some(x => x.hidden), `en arrière-plan, la voix donne le conseil avant le virage (${spoken.map(x => '« ' + x.text + ' »').join(', ') || 'rien'})`);
 
   await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
-  check((await page.evaluate(() => __log.bubble.at(-1)))[0] === 'hide', 'retour dans l\'appli : la bulle disparaît');
+  check((await page.evaluate(() => __log.bubble.filter(b => b[0] !== 'update').at(-1)))[0] === 'hide', 'retour dans l\'appli : la bulle disparaît');
   await page.click('#bEnd'); await page.waitForTimeout(300);
   check((await page.evaluate(() => __log.removed)).includes('w1'), 'fin du trajet : le GPS en arrière-plan s\'arrête (plus de notification)');
+  await page.waitForTimeout(300);
+  const arms = await page.evaluate(() => __log.bubble.filter(b => b[0] === 'arm').map(b => b[1]));
+  check(arms[0] === true && arms.at(-1) === false, 'Android est prévenu du début et de la fin du trajet (il affiche la bulle de lui-même)');
+  check(/Bulle : autorisée oui, appli quittée 1 fois, bulle affichée 1 fois/.test(await page.inputValue('#eLog')), 'le journal indique ce qu\'a fait la bulle');
 
   // Simulation : la bulle doit aussi apparaître, et la simulation continuer quand l'appli est cachée
   const sim = await browser.newPage();
@@ -87,7 +93,9 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
       Bubble: { hasPermission: () => Promise.resolve({ granted: __log.askedPerm > 0 }), requestPermission: () => { __log.askedPerm++; return Promise.resolve(); },
         show: o => { __log.bubble.push(['show', o.line1, o.line2]); return Promise.resolve(); },
         update: o => { __log.bubble.push(['update', o.line1, o.line2]); return Promise.resolve(); },
-        hide: () => { __log.bubble.push(['hide']); return Promise.resolve(); } },
+        hide: () => { __log.bubble.push(['hide']); return Promise.resolve(); },
+        arm: o => { __log.bubble.push(['arm', o.active]); return Promise.resolve(); },
+        status: () => Promise.resolve({ granted: true, pauses: 1, shows: 1, lastError: '' }) },
       TextToSpeech: { speak: () => Promise.resolve(), stop: () => Promise.resolve() },
       KeepAwake: { keepAwake: () => Promise.resolve(), allowSleep: () => Promise.resolve() } } };
     navigator.geolocation.getCurrentPosition = ok => ok({ coords: { latitude: LAT0 + 300 / 111320, longitude: LON0 } });
@@ -97,14 +105,11 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   check(await sim.isVisible('#bubbleBox'), 'accueil : bouton « Activer » la bulle tant qu\'elle n\'est pas autorisée');
   await sim.click('#bSim'); await sim.waitForTimeout(4000);
   check(simDialogs === 1, 'simulation : l\'appli propose aussi d\'autoriser la bulle');
-  await sim.evaluate(() => {
-    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
-    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
-    window.requestAnimationFrame = () => 0; document.dispatchEvent(new Event('visibilitychange')); });
+  // comme dans l'appli Android : aucun signal « page cachée », l'écran cesse simplement d'être redessiné
+  await sim.evaluate(() => { window.requestAnimationFrame = () => 0; });
   await sim.waitForTimeout(6500);
   const sb = await sim.evaluate(() => __log.bubble);
-  check(sb.length && sb[0][0] === 'show', 'simulation, appli cachée : la bulle apparaît');
-  check(new Set(sb.map(b => b.slice(1).join(' '))).size >= 3, `simulation, appli cachée : la simulation continue et la bulle suit (${[...new Set(sb.map(b => b.slice(1).join(' ')))].slice(0, 4).join(' → ')})`);
+  check(new Set(sb.filter(b => b[0] === 'update').map(b => b.slice(1).join(' '))).size >= 3, `simulation, appli cachée sans signal de la page : la simulation continue et le contenu de la bulle suit (${[...new Set(sb.filter(b => b[0] === 'update').map(b => b.slice(1).join(' ')))].slice(0, 4).join(' → ')})`);
   await sim.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
   await sim.waitForTimeout(300);
 
