@@ -1,0 +1,65 @@
+# Fabrique l'appli Android (APK) à chaque modification.
+# Sur main : publie l'APK dans la release « android-latest », téléchargeable depuis le téléphone :
+# https://github.com/maximecerdan45-spec/pied-leve/releases/download/android-latest/PiedLeve.apk
+name: Appli Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Copier l'appli web dans le projet Android
+        run: npm run android:sync
+
+      - name: Fabriquer l'APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk ../PiedLeve.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PiedLeve-apk
+          path: PiedLeve.apk
+
+      - name: Publier l'APK (release android-latest)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest PiedLeve.apk \
+            --title "Pied Levé Android (version ${{ github.run_number }})" \
+            --notes "Dernière version de l'appli Android, fabriquée automatiquement depuis main (${GITHUB_SHA::7}). Téléchargez PiedLeve.apk sur le téléphone puis ouvrez-le pour l'installer." \
+            --target "$GITHUB_SHA"
