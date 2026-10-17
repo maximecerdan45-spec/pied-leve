@@ -96,6 +96,8 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#E4E
     <button class="chip" type="button" data-map="classique">Classique</button><button class="chip" type="button" data-map="epure">Épurée</button><button class="chip" type="button" data-map="vintage">Vintage</button><button class="chip" type="button" data-map="fjord">Fjord</button></div>
   <div class="prow" role="group" aria-label="Interface"><span>Interface</span>
     <button class="chip" type="button" data-skin="classique">Classique</button><button class="chip" type="button" data-skin="france">France</button><button class="chip" type="button" data-skin="scandinave">Scandinave</button><button class="chip" type="button" data-skin="colore">Coloré</button></div>
+  <div class="prow"><span>Inclinaison</span><input type="range" id="pitch" min="0" max="70" step="1" value="55" aria-label="Inclinaison de la caméra" style="flex:1;min-width:140px"><b id="pitchV" style="flex:none;width:42px;text-align:right">55°</b></div>
+  <div class="prow" role="group" aria-label="Zoom"><span>Zoom</span><button class="chip" type="button" id="zOut">− Dézoomer</button><button class="chip" type="button" id="zIn">+ Zoomer</button><b id="zoomV" style="flex:none">0</b></div>
   <div class="prow" role="group" aria-label="Jour ou nuit"><span>Moment</span>
     <button class="chip" type="button" data-night="off">Jour</button><button class="chip" type="button" data-night="on">Nuit</button><button class="chip" type="button" data-night="auto">Auto</button></div>
 </details>
@@ -188,7 +190,10 @@ iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#E4E
   // personnaliser : chaque puce appelle l'appli (véhicule, palette de carte, habillage)
   document.querySelectorAll('.perso .chip').forEach(b => b.onclick = () => { const A = app(); if (!A) return;
     if (b.dataset.veh) A.setVehicle(b.dataset.veh); if (b.dataset.map) A.setMapStyle(b.dataset.map); if (b.dataset.skin) A.setSkin(b.dataset.skin); if (b.dataset.night) A.setNight(b.dataset.night); });
-  function persoSync(A) { const c = A.choice; document.querySelectorAll('.perso .chip').forEach(b => b.setAttribute('aria-pressed', String(
+  $('pitch').oninput = e => { const A = app(); if (A && A.setPitch) A.setPitch(e.target.value); };
+  $('zIn').onclick = () => { const A = app(); if (A && A.zoomBy) A.zoomBy(0.5); };
+  $('zOut').onclick = () => { const A = app(); if (A && A.zoomBy) A.zoomBy(-0.5); };
+  function persoSync(A) { if (A.cam) { if (document.activeElement !== $('pitch')) $('pitch').value = A.cam.pitch; $('pitchV').textContent = Math.round(A.cam.pitch) + '°'; $('zoomV').textContent = (A.cam.zoom > 0 ? '+' : '') + A.cam.zoom; } const c = A.choice; document.querySelectorAll('.perso .chip').forEach(b => b.setAttribute('aria-pressed', String(
     (b.dataset.veh && b.dataset.veh === c.veh) || (b.dataset.map && b.dataset.map === c.map) || (b.dataset.skin && b.dataset.skin === c.skin) || (b.dataset.night && b.dataset.night === c.night) || false))); }
   function tick() {
     const A = app();

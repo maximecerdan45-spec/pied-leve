@@ -293,6 +293,29 @@ details.more p{font-size:14px}
 .badge.off{opacity:.45}
 .badge.off .bi{background:var(--line);color:var(--muted)}
 .bgrid{display:flex;flex-direction:column;gap:8px}
+/* zoom pendant la conduite, bouton stations-service */
+.zoomb{position:fixed;right:max(16px,var(--sa-right));top:42%;display:flex;flex-direction:column;gap:8px}
+.zoomb .round,.fuelb{width:52px;height:52px;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.fuelb{position:fixed;right:max(16px,var(--sa-right));bottom:calc(var(--sa-bottom) + 160px)}
+.fuelb svg{width:26px;height:26px}
+.fuelsheet{position:fixed;z-index:7;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;background:var(--surface);color:var(--ink);border-radius:22px 22px 0 0;box-shadow:0 -6px 24px rgba(10,20,15,.25);padding:14px max(16px,var(--sa-right)) calc(16px + var(--sa-bottom)) max(16px,var(--sa-left));display:flex;flex-direction:column;gap:10px;max-height:72vh;overflow:auto}
+.fhead{display:flex;align-items:center;justify-content:space-between}
+.fhead b{font:700 22px var(--f-display)}
+.fhead .round{width:44px;height:44px}
+.fkinds{display:flex;gap:6px;overflow-x:auto}
+.fkinds button{flex:none;border:0;border-radius:999px;min-height:40px;padding:0 14px;font:600 14px var(--f-body);background:var(--bg);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer}
+.fkinds button[aria-pressed="true"]{background:var(--ink);color:var(--surface);box-shadow:none}
+.flist{display:flex;flex-direction:column;gap:8px}
+.fst{display:flex;align-items:center;gap:12px;width:100%;border:0;border-radius:16px;background:var(--bg);color:var(--ink);padding:12px 14px;text-align:left;cursor:pointer;min-height:64px}
+.fst .n{flex:1;min-width:0}
+.fst b{display:block;font:700 17px var(--f-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fst small{display:block;font-size:13px;color:var(--muted)}
+.fst .p{font:700 22px var(--f-display);font-variant-numeric:tabular-nums;text-align:right}
+.fst .p small{font:500 12px var(--f-body)}
+.fst .go{width:40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;flex:none}
+.fst .go svg{width:20px;height:20px}
+.mk-fuel{width:30px;height:30px;border-radius:50% 50% 50% 4px;transform:rotate(-45deg);background:var(--accent);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3);display:grid;place-items:center}
+.mk-fuel span{transform:rotate(45deg);color:#fff;font:700 14px var(--f-display)}
 @media (prefers-reduced-motion:reduce){.cue.pulse{animation:none}.toast{animation:none}}
 </style>
 </head>
@@ -340,6 +363,7 @@ details.more p{font-size:14px}
     </div>
     <div class="mgroup">
       <button class="mrow" id="bSim" type="button"><span><b>Essayer en simulation</b></span></button>
+      <button class="mrow" id="bFuelMenu" type="button"><span><b>Stations-service proches</b><small>Avec les prix du jour</small></span></button>
       <details class="mrow safe"><summary><b>Conseils de sécurité</b></summary>
         <ul>
           <li><strong>Téléphone fixé sur un support</strong>, écran visible sans le tenir.</li>
@@ -379,6 +403,8 @@ details.more p{font-size:14px}
     <div class="eta" id="etaBox" hidden><b id="hEtaT">Pied Levé</b><span id="hEtaI">sans destination</span></div>
     <span id="hEco" hidden>0,00 L</span>
     <div class="kitty" id="kitty" role="status" aria-label="Cagnotte du trajet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 10.5c0-3.6-3.1-6-7-6S5 6.9 5 10.5c0 1.9.9 3.4 2.3 4.5L7 18.5h3l.5-1.6c.5.1 1 .1 1.5.1s1 0 1.5-.1l.5 1.6h3l-.3-3.5c.9-.7 1.6-1.6 1.9-2.6H21v-2.5h-2.1"/><path d="M10 4.8c.4-1.2 1.6-2 3-2"/><circle cx="15.5" cy="9.5" r=".6" fill="currentColor"/></svg><b id="kittyAmt">0,00 €</b></div>
+    <div class="zoomb"><button class="round" id="bZoomIn" type="button" aria-label="Zoomer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button class="round" id="bZoomOut" type="button" aria-label="Dézoomer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg></button></div>
+    <button class="round fuelb" id="bFuel" type="button" aria-label="Stations-service proches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 012-2h7a2 2 0 012 2v16M3 21h13M7 7h5v4H7z"/><path d="M15 9h2a2 2 0 012 2v6a1.5 1.5 0 003 0V9l-3-3"/></svg></button>
     <button class="round mute" id="bMute" type="button" aria-pressed="false" aria-label="Couper le son"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/><path class="off" d="M16 9l5 6M21 9l-5 6"/></svg></button>
     <button class="round stop" id="bEnd" aria-label="Terminer le trajet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
@@ -392,6 +418,12 @@ details.more p{font-size:14px}
     <div class="setup" id="setupList"></div>
     <button class="btn ghost" id="bSetupDone">C’est prêt</button>
   </div>
+</div>
+<div class="fuelsheet" id="ovFuel" role="dialog" aria-label="Stations-service" hidden>
+  <div class="fhead"><b>Stations-service</b><button class="round" id="bFuelClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="fkinds" id="fuelKinds" role="group" aria-label="Carburant"></div>
+  <div class="flist" id="fuelList"></div>
+  <p class="fine" id="fuelNote"></p>
 </div>
 <div class="ov" id="ovBadges" hidden>
   <div class="in">
@@ -1092,6 +1124,65 @@ function say(txt){ if(!voiceOn) return; if(NATIVE&&PLUG.TextToSpeech){ const now
 const KITTY={v:-1};
 function kittySet(eur){ const c=Math.floor(eur*100+1e-6); if(c===KITTY.v) return; const up=KITTY.v>=0&&c>KITTY.v; KITTY.v=c;
   $('kittyAmt').textContent=`${nf(c/100,2)} €`; if(up){ const k=$('kitty'); k.classList.add('bump'); setTimeout(()=>k.classList.remove('bump'),180); } }
+// Zoom pendant la conduite : boutons + / − et pincement à deux doigts sur la carte
+function zoomBy(d){ CAM.zoomAdj=clamp(CAM.zoomAdj+d,-4,2.5); }
+$('bZoomIn').onclick=()=>zoomBy(0.5); $('bZoomOut').onclick=()=>zoomBy(-0.5);
+(()=>{ let p0=null, z0=0; const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const tgt=$('map');
+  tgt.addEventListener('touchstart',e=>{ if(S.running&&e.touches.length===2){ p0=dist(e.touches); z0=CAM.zoomAdj; } },{passive:true});
+  tgt.addEventListener('touchmove',e=>{ if(p0&&e.touches.length===2){ CAM.zoomAdj=clamp(z0+Math.log2(dist(e.touches)/p0),-4,2.5); } },{passive:true});
+  tgt.addEventListener('touchend',e=>{ if(e.touches.length<2) p0=null; },{passive:true}); })();
+function setPitch(v){ CAM.pitch=clamp(+v||0,0,70); try{ localStorage.setItem('pl-pitch',String(CAM.pitch)); }catch(e){} }
+/* ===== Stations-service : les 3 plus proches, en priorité sur le trajet ou devant, avec les prix du jour =====
+   Prix : flux public « prix des carburants » (data.economie.gouv.fr) ; noms des stations : OpenStreetMap. */
+const FUELS=[['gazole','Gazole'],['e10','SP95-E10'],['sp95','SP95'],['sp98','SP98'],['e85','E85'],['gplc','GPL']];
+let FUEL='gazole'; try{ const f=localStorage.getItem('pl-fuel'); if(FUELS.some(x=>x[0]===f)) FUEL=f; }catch(e){}
+const FST={list:null,mk:[],pos:null};
+function fuelKinds(){ const box=$('fuelKinds'); box.innerHTML=''; for(const [k,n] of FUELS){ const b=document.createElement('button'); b.type='button'; b.textContent=n; b.setAttribute('aria-pressed',String(k===FUEL));
+  b.onclick=()=>{ FUEL=k; try{ localStorage.setItem('pl-fuel',k); }catch(e){} fuelKinds(); fuelRender(); }; box.append(b); } }
+async function fuelGov(lat,lon){ const w=`within_distance(geom, geom'POINT(${lon.toFixed(5)} ${lat.toFixed(5)})', 10km)`;
+  const r=await fetch(`https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${encodeURIComponent(w)}&limit=80`,{signal:AbortSignal.timeout?AbortSignal.timeout(9000):undefined});
+  if(!r.ok) throw new Error('HTTP '+r.status); const js=await r.json();
+  return (js.results||[]).map(x=>{ const la=x.geom&&x.geom.lat!=null?x.geom.lat:(x.latitude!=null?(Math.abs(+x.latitude)>1000?+x.latitude/1e5:+x.latitude):null);
+    const lo=x.geom&&x.geom.lon!=null?x.geom.lon:(x.longitude!=null?(Math.abs(+x.longitude)>1000?+x.longitude/1e5:+x.longitude):null);
+    const prices={}; for(const k in x){ const m=/^(gazole|sp95|e10|sp98|e85|gplc)_prix$/.exec(k); if(m&&x[k]!=null&&!isNaN(+x[k])) prices[m[1]]=+x[k]; }
+    return {lat:la,lon:lo,name:'',addr:[x.adresse,x.ville].filter(Boolean).join(', '),prices}; }).filter(x=>x.lat!=null&&x.lon!=null); }
+async function fuelOsm(lat,lon){ const q=`[out:json][timeout:15];nwr(around:10000,${lat.toFixed(5)},${lon.toFixed(5)})[amenity=fuel];out center 80;`;
+  const r=await fetch(EPS[0]+'?data='+encodeURIComponent(q)); if(!r.ok) throw new Error('HTTP '+r.status); const js=await r.json();
+  return (js.elements||[]).map(e=>({lat:e.lat??(e.center&&e.center.lat),lon:e.lon??(e.center&&e.center.lon),name:(e.tags&&(e.tags.brand||e.tags.name))||'',addr:'',prices:{}})).filter(x=>x.lat!=null); }
+async function fuelOpen(){
+  $('ovFuel').hidden=false; fuelKinds(); $('fuelList').innerHTML='<p class="fine">Recherche des stations…</p>'; $('fuelNote').textContent='';
+  let lat,lon; try{ if(S.running&&S.xy){ [lat,lon]=toLL(S.xy[0],S.xy[1]); } else { const p=await getPos(); lat=p.lat; lon=p.lon; } }catch(e){ $('fuelList').innerHTML='<p class="fine">Position indisponible.</p>'; return; }
+  FST.pos={lat,lon};
+  const [g,o]=await Promise.allSettled([fuelGov(lat,lon),fuelOsm(lat,lon)]);
+  let list=g.status==='fulfilled'?g.value:[]; const osm=o.status==='fulfilled'?o.value:[];
+  const near=(a,b)=>Math.hypot((a.lat-b.lat)*111320,(a.lon-b.lon)*111320*Math.cos(a.lat*Math.PI/180))<90;
+  if(list.length){ for(const st of list){ const m=osm.find(x=>near(x,st)); if(m&&m.name) st.name=m.name; } } else list=osm;
+  FST.list=list; logLine(`Stations-service : ${list.length} trouvées (${g.status==='fulfilled'?'prix du jour':'sans les prix'})`);
+  fuelRender(); }
+function fuelRank(){ const P=FST.pos, list=FST.list||[]; if(!P) return [];
+  const kx=111320*Math.cos(P.lat*Math.PI/180), ky=110540, hd=S.running&&S.veh?S.veh.h:null;
+  return list.map(st=>{ const dx=(st.lon-P.lon)*kx, dy=(st.lat-P.lat)*ky, d=Math.hypot(dx,dy); let on=false, along=null, ahead=false;
+      if(S.running&&S.route&&S.ref){ const [x,y]=toXY(st.lat,st.lon), rn=routeNear(x,y); if(rn.d<800&&rn.s>(S.route.s||0)){ on=true; along=rn.s-(S.route.s||0); } }
+      if(hd!=null&&d>50){ let a=Math.atan2(dx,dy)-hd; while(a>Math.PI) a-=2*Math.PI; while(a<-Math.PI) a+=2*Math.PI; ahead=Math.abs(a)<1.2; }
+      return {...st,d,on,along,ahead}; })
+    .sort((a,b)=>(b.on-a.on)||(a.on&&b.on?a.along-b.along:0)||(b.ahead-a.ahead)||(a.d-b.d)).slice(0,3); }
+function fuelRender(){ const box=$('fuelList'); if(!FST.list){ return; } box.innerHTML='';
+  const top=fuelRank(); if(!top.length){ box.innerHTML='<p class="fine">Aucune station trouvée à moins de 10 km.</p>'; return; }
+  const kname=(FUELS.find(x=>x[0]===FUEL)||[])[1];
+  top.forEach((st,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='fst';
+    const where=st.on?`sur le trajet, dans ${fmtD(st.along)}`:st.ahead?`devant, à ${fmtD(st.d)}`:`à ${fmtD(st.d)}`;
+    const pr=st.prices[FUEL];
+    b.innerHTML=`<div class="go">${i+1}</div><div class="n"><b></b><small></small></div><div class="p">${pr!=null?nf(pr,3)+' €':'–'}<small>${pr!=null?kname:'prix inconnu'}</small></div>`;
+    b.querySelector('b').textContent=st.name||st.addr||'Station-service'; b.querySelector('small').textContent=(st.name&&st.addr?st.addr+' · ':'')+where;
+    b.onclick=()=>{ logLine(`Station choisie : ${st.name||st.addr}`); location.href=`https://waze.com/ul?ll=${st.lat.toFixed(6)},${st.lon.toFixed(6)}&navigate=yes`; };
+    box.append(b); });
+  $('fuelNote').textContent='Touchez une station pour y aller avec Waze. Prix : prix-carburants.gouv.fr. Ne touchez pas l’écran en roulant : demandez à un passager ou arrêtez-vous.';
+  fuelMarkers(top); }
+function fuelMarkers(top){ FST.mk.forEach(m=>m.remove()); FST.mk=[]; if(!GL||!MAP) return;
+  top.forEach((st,i)=>{ const e=document.createElement('div'); e.className='mk-fuel'; e.innerHTML=`<span>${i+1}</span>`; FST.mk.push(new maplibregl.Marker({element:e,anchor:'bottom'}).setLngLat([st.lon,st.lat]).addTo(MAP)); }); }
+function fuelClose(){ $('ovFuel').hidden=true; FST.mk.forEach(m=>m.remove()); FST.mk=[]; }
+$('bFuel').onclick=fuelOpen; $('bFuelClose').onclick=fuelClose; $('bFuelMenu').onclick=()=>{ $('ovMenu').hidden=true; fuelOpen(); };
 function setVoice(on){ voiceOn=on; $('bSound').setAttribute('aria-checked',String(on));
   const m=$('bMute'); m.setAttribute('aria-pressed',String(!on)); m.setAttribute('aria-label',on?'Couper le son':'Remettre le son');
   if(!on){ try{ speechSynthesis.cancel(); }catch(e){} try{ if(NATIVE&&PLUG.TextToSpeech) PLUG.TextToSpeech.stop().catch(()=>{}); }catch(e){} }
@@ -1211,6 +1302,8 @@ function hud(g){
 }
 
 /* ===== Carte façon GPS (MapLibre + OpenFreeMap) ===== */
+// Caméra : zoom réglable pendant la conduite (boutons + / − ou pincement), inclinaison réglable (Labo)
+const CAM={zoomAdj:0,pitch:55}; try{ const p=+localStorage.getItem('pl-pitch'); if(p>=0&&p<=70&&localStorage.getItem('pl-pitch')!==null) CAM.pitch=p; }catch(e){}
 let MAP=null, GL=false, carMk=null, liftMk=null, destMk=null, homeMk=null, lastAhead=0, zoomS=17;
 const evMk=new Map(), EMPTY={type:'FeatureCollection',features:[]};
 const llOf=(x,y)=>{ const r=toLL(x,y); return [r[1],r[0]]; };
@@ -1263,7 +1356,10 @@ function initMap(){
     MAP.on('load',()=>{
       // Paysage épuré : pas de bâtiments ni de relief, seulement les routes et les repères utiles
       for(const l of MAP.getStyle().layers||[]){
-        if(l.type==='fill-extrusion'||l.type==='hillshade'||/building|housenum/i.test(l.id)) MAP.setLayoutProperty(l.id,'visibility','none'); }
+        if(l.type==='fill-extrusion'||l.type==='hillshade'||/building|housenum/i.test(l.id)) MAP.setLayoutProperty(l.id,'visibility','none');
+        // Le strict minimum : ni restaurants, ni commerces, ni arrêts, ni voies ferrées ; seulement les noms de villes et de rues
+        else if(l.type==='symbol'&&!/^(place_(city|town|village)|highway-name-(major|minor)|road_label|label_(city|town|village))/i.test(l.id)) MAP.setLayoutProperty(l.id,'visibility','none');
+        else if((l.type==='line'||l.type==='fill')&&/rail|transit|aeroway|boundary|ferry|cable|aerialway|pier/i.test(l.id)) MAP.setLayoutProperty(l.id,'visibility','none'); }
       MAP.addSource('route',{type:'geojson',data:EMPTY});
       MAP.addLayer({id:'route-case',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#0D4A73','line-opacity':.35,'line-width':['interpolate',['linear'],['zoom'],10,6,17,20]}});
       MAP.addLayer({id:'route',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#2A8FD6','line-width':['interpolate',['linear'],['zoom'],10,3.5,17,13]}});
@@ -1313,7 +1409,7 @@ function drawGL(g,adv,dtR,ts){
   camStep(dtR);
   zoomS+=((17.7-1.5*clamp(V.v/25,0,1))-zoomS)*(1-Math.exp(-dtR/1.5));
   const ll=llOf(car[0],car[1]);
-  MAP.jumpTo({center:ll,bearing:(camH||0)*180/Math.PI,pitch:55,zoom:zoomS});
+  MAP.jumpTo({center:ll,bearing:(camH||0)*180/Math.PI,pitch:CAM.pitch,zoom:clamp(zoomS+CAM.zoomAdj,12,19.5)});
   const sp=MAP.project(ll); carMk.el.style.visibility='visible'; carMk.el.style.transform=`translate(${(sp.x-48).toFixed(2)}px,${(sp.y-48).toFixed(2)}px)`;
   const rel=angSigned(car[2],camH??car[2])*180/Math.PI; carMk.el._car.style.transform=`rotateX(${MAP.getPitch().toFixed(1)}deg) rotateZ(${rel.toFixed(2)}deg) scale3d(1.35,1.35,1.35)`;
   if(ts-lastAhead<250) return; lastAhead=ts;
@@ -1481,7 +1577,7 @@ function start(mode,opt){ opt=opt||{};
   if(!window.isSecureContext){ $('startMsg').textContent='Cette page doit être ouverte en https pour accéder au GPS.'; return; }
   if(!navigator.geolocation){ $('startMsg').textContent='Ce navigateur ne donne pas accès à la position.'; return; }
   reset(); S.mode=mode; S.running=true; if(!opt.quiet) unlockAudio(); keepAwake();
-  $('ovStart').hidden=true; $('ovMenu').hidden=true; $('ovBadges').hidden=true; $('toast').hidden=true; $('ovEnd').hidden=true; $('drive').hidden=false; $('etaBox').hidden=!PLAN; $('cMode').hidden=mode!=='sim'; glDrive();
+  $('ovStart').hidden=true; $('ovMenu').hidden=true; $('ovBadges').hidden=true; fuelClose(); $('toast').hidden=true; $('ovEnd').hidden=true; $('drive').hidden=false; $('etaBox').hidden=!PLAN; $('cMode').hidden=mode!=='sim'; glDrive();
   logLine(`Démarrage (${mode==='sim'?'simulation':'route réelle'})`);
   if(PLAN) logLine(`Destination : ${PLAN.dest.name} (${nf(PLAN.distance/1000,1)} km, ${Math.round(PLAN.duration/60)} min estimées sans trafic)`);
   setMap('–'); setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert');
@@ -1673,7 +1769,7 @@ $('bInstall').onclick=async()=>{ if(!installEvt) return; installEvt.prompt(); tr
 addEventListener('appinstalled',()=>{ $('installBox').hidden=true; $('installHint').hidden=true; });
 if(!NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 // Page « Labo » (labo.html) : l'appli tourne dans un cadre et la page pilote la simulation et imite la bulle
-if(/[?&]labo\b/.test(location.search)) window.PL_LABO={start,end,SIM,setVehicle,setMapStyle,setSkin,VEHS,SKINS,MAP_PALS,setNight(m){ NIGHT.mode=m; try{ localStorage.setItem('pl-night',m); }catch(e){} nightApply(); },get choice(){ return {veh:VEH_ID,map:MAP_CHOICE,skin:SKIN,night:NIGHT.mode}; },get S(){ return S; },get bubble(){ return BUB.info; },get voice(){ return voiceOn; },setVoice};
+if(/[?&]labo\b/.test(location.search)) window.PL_LABO={start,end,SIM,setPitch,zoomBy,get cam(){ return {pitch:CAM.pitch,zoom:CAM.zoomAdj}; },setVehicle,setMapStyle,setSkin,VEHS,SKINS,MAP_PALS,setNight(m){ NIGHT.mode=m; try{ localStorage.setItem('pl-night',m); }catch(e){} nightApply(); },get choice(){ return {veh:VEH_ID,map:MAP_CHOICE,skin:SKIN,night:NIGHT.mode}; },get S(){ return S; },get bubble(){ return BUB.info; },get voice(){ return voiceOn; },setVoice};
 })();
 </script>
 </body>
