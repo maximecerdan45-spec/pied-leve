@@ -87,8 +87,11 @@ public class BubblePlugin extends Plugin {
     /** Remet Pied Levé derrière (Waze revient devant). */
     @PluginMethod
     public void toBack(PluginCall call) {
+        final long asked = call.getLong("t", 0L);
         if (getActivity() != null) getActivity().runOnUiThread(() -> getActivity().moveTaskToBack(true));
-        call.resolve();
+        JSObject r = new JSObject();
+        r.put("queued", asked > 0 ? Math.max(0, System.currentTimeMillis() - asked) : -1);
+        call.resolve(r);
     }
 
     /** État de la veille « Waze », pour le journal. */
