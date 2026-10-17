@@ -177,6 +177,7 @@ textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;
     </div>
     <div class="install" id="bubbleBox" hidden><span>Bulle avec les conseils par-dessus Waze</span><button class="tbtn" id="bBubble">Activer</button></div>
     <div class="install" id="installBox" hidden><span>Installer Pied Levé sur l’écran d’accueil</span><button class="tbtn" id="bInstall">Installer</button></div>
+    <p class="fine" id="appVer"></p>
     <p class="fine" id="installHint" hidden>Pour l’installer : menu ⋮ de Chrome, puis « Installer l’application ».</p>
     <details class="safe">
       <summary>Avant de partir</summary>
@@ -244,7 +245,7 @@ textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;
 (() => {
 "use strict";
 /* Appli Android (Capacitor) : modules natifs pour la voix et l'écran allumé */
-const CAP=window.Capacitor, NATIVE=!!(CAP&&CAP.isNativePlatform&&CAP.isNativePlatform());
+const CAP=window.Capacitor, NATIVE=!!(CAP&&((CAP.isNativePlatform&&CAP.isNativePlatform())||(CAP.getPlatform&&CAP.getPlatform()!=='web')));
 const capReg=(window.capacitorExports&&window.capacitorExports.registerPlugin)||(CAP&&CAP.registerPlugin);
 const PLUG=!NATIVE?{}:capReg?{TextToSpeech:capReg('TextToSpeech'),KeepAwake:capReg('KeepAwake'),BackgroundGeolocation:capReg('BackgroundGeolocation'),Bubble:capReg('Bubble')}:(CAP.Plugins||{});
 /* ===== Modèle véhicule ===== */
@@ -727,6 +728,9 @@ document.addEventListener('visibilitychange',()=>{ if(document.hidden) bubbleSho
 async function bubbleBoxRefresh(){ const B=PLUG.Bubble; if(!NATIVE||!B) return; try{ $('bubbleBox').hidden=(await B.hasPermission()).granted; }catch(e){} }
 $('bBubble').onclick=()=>{ const B=PLUG.Bubble; if(B) B.requestPermission().catch(()=>{}); };
 bubbleBoxRefresh();
+// Quelle version tourne ? (affiché sur l'accueil et dans le journal, pour ne pas confondre appli web et appli Android)
+let APPVER='Version web';
+(async()=>{ if(NATIVE){ APPVER='Appli Android'; try{ const r=await fetch('./app-version.json',{cache:'no-store'}); const c=r.ok?(await r.json()).code:0; if(c) APPVER+=' · version '+c; }catch(e){} } $('appVer').textContent=APPVER; })();
 // Journal : état des modules Android, pour diagnostiquer à distance
 async function nativeReport(){ if(!NATIVE) return; const r=[];
   for(const [k,n] of [['TextToSpeech','voix'],['KeepAwake','écran allumé'],['BackgroundGeolocation','GPS arrière-plan'],['Bubble','bulle']]) r.push(`${n} ${PLUG[k]?'présent':'absent'}`);
@@ -1067,7 +1071,7 @@ function start(mode){
   logLine(`Démarrage (${mode==='sim'?'simulation':'route réelle'})`);
   if(PLAN) logLine(`Destination : ${PLAN.dest.name} (${nf(PLAN.distance/1000,1)} km, ${Math.round(PLAN.duration/60)} min estimées sans trafic)`);
   setMap('–'); setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert');
-  bubbleAsk(); nativeReport();
+  bubbleAsk(); nativeReport(); logLine(APPVER);
   if(mode==='real'){ if(!startNativeGps()) S.watch=navigator.geolocation.watchPosition(onFix,onGeoErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
   else {
     const go=(lat,lon,src)=>{ SIM.lat=lat; SIM.lon=lon; logLine(`Simulation depuis ${src}`); simEmit(); };
