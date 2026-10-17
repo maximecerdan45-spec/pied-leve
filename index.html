@@ -175,6 +175,7 @@ textarea{width:100%;min-height:160px;font:12px/1.4 ui-monospace,Menlo,monospace;
       <button class="btn go" id="bReal">Rouler sans destination</button>
       <button class="btn ghost" id="bSim">Simulation</button>
     </div>
+    <div class="install" id="bubbleBox" hidden><span>Bulle avec les conseils par-dessus Waze</span><button class="tbtn" id="bBubble">Activer</button></div>
     <div class="install" id="installBox" hidden><span>Installer Pied Levé sur l’écran d’accueil</span><button class="tbtn" id="bInstall">Installer</button></div>
     <p class="fine" id="installHint" hidden>Pour l’installer : menu ⋮ de Chrome, puis « Installer l’application ».</p>
     <details class="safe">
@@ -710,7 +711,7 @@ function bubbleInfo(g){
   }
 }
 function bubbleSet(g){ BUB.info=bubbleInfo(g); const k=JSON.stringify(BUB.info); if(BUB.on&&k!==BUB.last){ BUB.last=k; PLUG.Bubble.update(BUB.info).catch(()=>{}); } }
-function bubbleShow(){ const B=PLUG.Bubble; if(!NATIVE||!B||!S.running||BUB.on) return; BUB.on=true; BUB.last=JSON.stringify(BUB.info); B.show(BUB.info).catch(()=>{ BUB.on=false; }); }
+function bubbleShow(){ const B=PLUG.Bubble; if(!NATIVE||!B||!S.running||BUB.on) return; BUB.on=true; BUB.last=JSON.stringify(BUB.info); B.show(BUB.info).then(()=>logLine('Bulle affichée')).catch(e=>{ BUB.on=false; logLine('Bulle impossible : '+((e&&e.message)||e)); }); }
 function bubbleHide(){ const B=PLUG.Bubble; if(!B||!BUB.on) return; BUB.on=false; B.hide().catch(()=>{}); }
 // Au départ d'un trajet : proposer (au plus une fois par semaine) d'autoriser la bulle
 async function bubbleAsk(){
@@ -721,7 +722,16 @@ async function bubbleAsk(){
     if(confirm('Afficher une bulle avec les conseils par-dessus Waze ?\n\nAndroid va ouvrir le réglage « Affichage par-dessus d’autres applis » : activez-le pour Pied Levé, puis revenez.')) await B.requestPermission();
   }catch(e){}
 }
-document.addEventListener('visibilitychange',()=>{ if(document.hidden) bubbleShow(); else bubbleHide(); });
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) bubbleShow(); else { bubbleHide(); bubbleBoxRefresh(); } });
+// Accueil : bouton pour activer la bulle tant que l'autorisation Android manque
+async function bubbleBoxRefresh(){ const B=PLUG.Bubble; if(!NATIVE||!B) return; try{ $('bubbleBox').hidden=(await B.hasPermission()).granted; }catch(e){} }
+$('bBubble').onclick=()=>{ const B=PLUG.Bubble; if(B) B.requestPermission().catch(()=>{}); };
+bubbleBoxRefresh();
+// Journal : état des modules Android, pour diagnostiquer à distance
+async function nativeReport(){ if(!NATIVE) return; const r=[];
+  for(const [k,n] of [['TextToSpeech','voix'],['KeepAwake','écran allumé'],['BackgroundGeolocation','GPS arrière-plan'],['Bubble','bulle']]) r.push(`${n} ${PLUG[k]?'présent':'absent'}`);
+  try{ r.push('autorisation bulle '+((await PLUG.Bubble.hasPermission()).granted?'oui':'non')); }catch(e){ r.push('bulle injoignable ('+((e&&e.message)||e)+')'); }
+  logLine('Modules Android : '+r.join(', ')); }
 
 function updateCue(g){
   if(!S.running) return;
@@ -1020,6 +1030,8 @@ function frame(ts){
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+// En arrière-plan, l'écran n'est plus redessiné : la simulation avance une fois par seconde
+setInterval(()=>{ if(!document.hidden||!S.running||S.mode!=='sim') return; S.v=SIM.v; const g=S.path?guide(SIM.v,SIM.s):{lvl:'go'}; simTick(SIM.mult,g); updateCue(g); },1000);
 
 /* ===== Démarrage / fin ===== */
 let wake=null;
@@ -1055,7 +1067,7 @@ function start(mode){
   logLine(`Démarrage (${mode==='sim'?'simulation':'route réelle'})`);
   if(PLAN) logLine(`Destination : ${PLAN.dest.name} (${nf(PLAN.distance/1000,1)} km, ${Math.round(PLAN.duration/60)} min estimées sans trafic)`);
   setMap('–'); setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert');
-  if(mode==='real') bubbleAsk();
+  bubbleAsk(); nativeReport();
   if(mode==='real'){ if(!startNativeGps()) S.watch=navigator.geolocation.watchPosition(onFix,onGeoErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
   else {
     const go=(lat,lon,src)=>{ SIM.lat=lat; SIM.lon=lon; logLine(`Simulation depuis ${src}`); simEmit(); };
