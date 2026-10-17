@@ -41,6 +41,34 @@ public class WazeWatchService extends Service {
     private boolean handledThisWazeSession = false;
     private long lastQuery = 0;
 
+    /**
+     * « Accès aux données d'utilisation » accordé ? Selon les téléphones, Android répond « autorisé »
+     * ou « par défaut » : dans ce dernier cas on vérifie la permission, et en dernier recours on essaie
+     * de lire les données (si on y arrive, l'accès est accordé).
+     */
+    static boolean usageGranted(Context c) {
+        try {
+            android.app.AppOpsManager ops = (android.app.AppOpsManager) c.getSystemService(Context.APP_OPS_SERVICE);
+            int uid = android.os.Process.myUid();
+            int mode = Build.VERSION.SDK_INT >= 29
+                    ? ops.unsafeCheckOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, uid, c.getPackageName())
+                    : ops.checkOpNoThrow(android.app.AppOpsManager.OPSTR_GET_USAGE_STATS, uid, c.getPackageName());
+            if (mode == android.app.AppOpsManager.MODE_ALLOWED) return true;
+            if (mode == android.app.AppOpsManager.MODE_DEFAULT
+                    && c.checkCallingOrSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) == android.content.pm.PackageManager.PERMISSION_GRANTED)
+                return true;
+        } catch (Exception ignored) {
+        }
+        try {
+            UsageStatsManager um = (UsageStatsManager) c.getSystemService(Context.USAGE_STATS_SERVICE);
+            long now = System.currentTimeMillis();
+            java.util.List<android.app.usage.UsageStats> l = um.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 86400000L, now);
+            return l != null && !l.isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     static boolean isOn(Context c) {
         return c.getSharedPreferences(PREFS, MODE_PRIVATE).getBoolean(KEY_ON, false);
     }

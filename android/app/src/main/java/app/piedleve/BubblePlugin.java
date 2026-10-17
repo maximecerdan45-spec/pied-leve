@@ -66,13 +66,7 @@ public class BubblePlugin extends Plugin {
     }
 
     private boolean usageGranted() {
-        try {
-            AppOpsManager ops = (AppOpsManager) getContext().getSystemService(Context.APP_OPS_SERVICE);
-            int mode = ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), getContext().getPackageName());
-            return mode == AppOpsManager.MODE_ALLOWED;
-        } catch (Exception e) {
-            return false;
-        }
+        return WazeWatchService.usageGranted(getContext());
     }
 
     @PluginMethod
