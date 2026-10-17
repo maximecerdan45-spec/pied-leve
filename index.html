@@ -799,8 +799,10 @@ function bubbleBoxRefresh(){ setupCheck().then(setupRender); }
 function autoStart(){
   if(!NATIVE||S.running) return;
   $('ovSetup').hidden=true; $('ovEnd').hidden=true;
-  start('real'); S.auto=true; logLine('Démarrage automatique : Waze vient de s’ouvrir');
-  setTimeout(()=>{ try{ PLUG.Bubble.toBack().catch(()=>{}); }catch(e){} },1500);
+  const t0=performance.now(); start('real'); S.auto=true; logLine('Démarrage automatique : Waze vient de s’ouvrir');
+  // On rend la main à Waze dès que le GPS est lancé (il doit démarrer appli devant), au plus tard après 1,5 s
+  const back=()=>{ clearInterval(iv); try{ PLUG.Bubble.toBack().catch(()=>{}); }catch(e){} logLine(`Retour vers Waze après ${Math.round(performance.now()-t0)} ms`); };
+  const iv=setInterval(()=>{ if(bgWatch!=null||performance.now()-t0>1500) back(); },50);
 }
 function autoCheck(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.consumeAutostart) return; B.consumeAutostart().then(r=>{ if(r&&r.pending) autoStart(); }).catch(()=>{}); }
 if(NATIVE&&PLUG.Bubble){ try{ PLUG.Bubble.addListener('autostart',autoCheck); }catch(e){} autoCheck(); }

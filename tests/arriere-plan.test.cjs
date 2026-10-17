@@ -162,10 +162,10 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   await xa.click('#setupList .srow:has-text("cadenas") .tbtn'); await xa.waitForTimeout(200);
   check((await xa.evaluate(() => window.__opened)) === 'xiaomiAuto' && /· 1 à faire/.test(await xa.textContent('#setupTxt')), 'son bouton ouvre le réglage Xiaomi, et elle reste facultative (seules les fenêtres pop-up restent « à faire »)');
   await xa.close();
-  await auto.evaluate(() => { window.__autoPending = true; window.__listeners.autostart(); }); await auto.waitForTimeout(2200);
+  await auto.evaluate(() => { window.__autoPending = true; window.__listeners.autostart(); }); await auto.waitForTimeout(600);
   const au = await auto.evaluate(() => ({ drive: !document.getElementById('drive').hidden, gps: __log.watchers.length, back: __log.toBack || 0 }));
   check(au.drive && au.gps === 1, 'Waze s\'ouvre : le trajet démarre tout seul (GPS en arrière-plan lancé)');
-  check(au.back === 1, 'puis Pied Levé se remet derrière Waze');
+  check(au.back === 1, 'puis Pied Levé se remet derrière Waze, en moins de 0,6 s (dès que le GPS est lancé)');
   await auto.evaluate(() => { window.__autoPending = true; window.__listeners.autostart(); }); await auto.waitForTimeout(500);
   check((await auto.evaluate(() => __log.watchers.length)) === 1, 'trajet déjà en cours : pas de second démarrage');
 
