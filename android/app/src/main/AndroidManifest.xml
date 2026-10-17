@@ -44,4 +44,6 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <!-- Bulle flottante avec les conseils, par-dessus Waze -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Pour proposer « pas de restriction de batterie » (GPS qui continue derrière Waze) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 </manifest>
