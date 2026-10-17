@@ -929,10 +929,10 @@ function liftBefore(e,v,vt,dEff){
 // Une zone orange reste affichée jusqu'à l'obstacle, même une fois le pied levé et la voiture ralentie.
 function liftPlan(adv){
   const zones=[]; let target=null;
-  for(const e of S.ev){ if(e.d-adv<-3) continue; const stop=e.vt===0, end=stop?e.d-20:e.d;
-    if(stop) zones.push([Math.max(0,e.d-20),e.d,2]);
+  for(const e of S.ev){ if(e.d-adv<-3) continue; const stop=e.vt===0, end=stop?e.d-8:e.d;
+    if(stop) zones.push([Math.max(0,e.d-8),e.d,2]);
     const r=S.liftRef[e.key]; if(r==null||(stop&&S.stopDone[e.key])) continue;
-    const ls=Math.max(0,(stop?e.d-15:e.d)-r);
+    const ls=Math.max(0,(stop?e.d-4:e.d)-r);
     if(end>ls) zones.push([ls,end,1]);
     if(!S.lifted[e.key]&&ls>adv+3&&(!target||ls<target.s)) target={s:ls,e}; }
   const z=zones.find(z=>z[2]===1&&z[0]>adv); S.zoneShown=z&&S.path?[pointAt(S.path.pts,z[0]),pointAt(S.path.pts,z[1])]:null; // mesuré par les tests
@@ -943,7 +943,8 @@ function guide(v,adv){
   for(const e of S.ev){
     const dn=e.d-adv; if(dn<-3) continue;
     if(!info&&dn>0) info={e,dn};
-    const stop=e.vt===0, dEff=stop?dn-15:dn, vt=(stop?12:e.vt)/KMH;
+    // stop : on lève le pied assez tôt pour arriver au pas sur la ligne (8 km/h à 4 m) sans toucher aux freins
+    const stop=e.vt===0, dEff=stop?dn-4:dn, vt=(stop?8:e.vt)/KMH;
     if(stop&&dn<25&&v<0.8){ S.stopDone[e.key]=1; }
     if(stop&&S.stopDone[e.key]) continue;
     if(stop&&dn<20&&dn>-3&&v>0.8) return {lvl:'stopzone',e,dn,info:{e,dn}};
@@ -981,8 +982,9 @@ function setCue(cls,ico,t,s,p){
 const BUB={on:false,last:'',info:{color:'#5A6560',line1:'PIED LEVÉ',line2:''}};
 function bubbleInfo(g){
   // couleurs foncées (texte blanc lisible) et pictogramme identiques au bandeau de l'appli
-  const kmh=Math.round((S.vS??S.v)*KMH)+' km/h';
-  if(!S.xy||!S.ways.size||!S.path||!g) return {color:'#3A4440',icon:'wait',line1:'PIED LEVÉ',line2:S.xy?kmh:''};
+  // au repos, la bulle montre la cagnotte du trajet (la vitesse est déjà dans Waze)
+  const pot=`${nf(Math.floor((S.eco?S.eco.saved:0)*PRICE*100)/100,2)} €`;
+  if(!S.xy||!S.ways.size||!S.path||!g) return {color:'#3A4440',icon:'kitty',line1:'CAGNOTTE',line2:pot};
   if(S.cheer&&performance.now()<S.cheer.until&&g.lvl!=='brake'&&g.lvl!=='stopzone') return {color:'#1E7A4C',icon:'go',line1:'BIEN JOUÉ !',line2:S.cheer.txt};
   const e=g.e;
   switch(g.lvl){
@@ -990,7 +992,7 @@ function bubbleInfo(g){
     case 'brake': return {color:'#B3332B',icon:'brake',line1:'FREINEZ',line2:fmtD(g.dn)};
     case 'lift': return {color:'#A85E05',icon:'lift',line1:'LEVEZ LE PIED',line2:fmtD(g.dn)};
     case 'prep': return {color:'#1C5A72',icon:'prep',line1:'LEVEZ DANS',line2:fmtD(g.liftAt),progress:Math.round((S.gauge?S.gauge.p:0)*10)/10,rate:Math.round((S.gauge?S.gauge.rate:0)*1000)/1000}; // la bulle se remplit d'orange, à vitesse régulière (Android anime entre deux mises à jour)
-    default: return {color:'#1E7A4C',icon:'go',line1:'ROULEZ',line2:kmh};
+    default: return {color:'#1E7A4C',icon:'kitty',line1:'CAGNOTTE',line2:pot};
   }
 }
 // Le contenu est toujours transmis à Android, qui affiche la bulle de lui-même quand l'appli passe derrière

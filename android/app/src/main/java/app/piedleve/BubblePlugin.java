@@ -56,6 +56,7 @@ public class BubblePlugin extends Plugin {
     private android.animation.ValueAnimator fillAnim;
     private BubbleIcon icon;
     private int curColor = 0;
+    private String lastL2 = null;
     private String curIcon = "";
     private TextView line1;
     private TextView line2;
@@ -447,6 +448,12 @@ public class BubblePlugin extends Plugin {
             icon.setKind(iconKind);
         }
         curColor = c;
+        // la cagnotte augmente : petit rebond
+        if ("kitty".equals(iconKind) && l2 != null && lastL2 != null && !l2.equals(lastL2) && "kitty".equals(curIcon)) {
+            card.animate().scaleX(1.06f).scaleY(1.06f).setDuration(110)
+                    .withEndAction(() -> card.animate().scaleX(1f).scaleY(1f).setDuration(140).start()).start();
+        }
+        lastL2 = l2;
         updateFill();
         line1.setText(l1);
         line2.setText(l2);
@@ -542,6 +549,14 @@ public class BubblePlugin extends Plugin {
                     path.moveTo(17, 6); path.lineTo(31, 6); path.lineTo(41, 16); path.lineTo(41, 30);
                     path.lineTo(31, 40); path.lineTo(17, 40); path.lineTo(7, 30); path.lineTo(7, 16); path.close();
                     path.moveTo(17, 23); path.lineTo(31, 23);
+                    break;
+                case "kitty": // tirelire : la cagnotte du trajet
+                    path.addOval(new android.graphics.RectF(7, 13, 39, 39), Path.Direction.CW);
+                    path.addRoundRect(new android.graphics.RectF(38, 21, 44, 30), 2, 2, Path.Direction.CW);
+                    path.moveTo(15, 15); path.lineTo(18, 8); path.lineTo(23, 13);
+                    path.moveTo(19, 18); path.lineTo(28, 18);
+                    path.moveTo(15, 38); path.lineTo(15, 44);
+                    path.moveTo(31, 38); path.lineTo(31, 44);
                     break;
                 default:
                     path.addCircle(24, 24, 15, Path.Direction.CW);

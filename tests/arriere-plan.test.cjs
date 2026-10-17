@@ -128,9 +128,10 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   await sim.click('#bMenu'); await sim.click('#bSim'); await sim.waitForTimeout(4000);
   // comme dans l'appli Android : aucun signal « page cachée », l'écran cesse simplement d'être redessiné
   await sim.evaluate(() => { window.requestAnimationFrame = () => 0; });
+  await sim.evaluate(() => { window.__cs = new Set(); window.__csT = setInterval(() => __cs.add(document.getElementById('cS').textContent), 300); });
   await sim.waitForTimeout(6500);
-  const sb = await sim.evaluate(() => __log.bubble);
-  check(new Set(sb.filter(b => b[0] === 'update').map(b => b.slice(1).join(' '))).size >= 3, `simulation, appli cachée sans signal de la page : la simulation continue et le contenu de la bulle suit (${[...new Set(sb.filter(b => b[0] === 'update').map(b => b.slice(1).join(' ')))].slice(0, 4).join(' → ')})`);
+  const sb = await sim.evaluate(() => __log.bubble), seen = await sim.evaluate(() => { clearInterval(__csT); return [...__cs]; });
+  check(seen.length >= 3 && sb.some(b => b[0] === 'update'), `simulation, appli cachée sans signal de la page : la simulation continue (${seen.slice(0, 3).join(' → ')}) et la bulle est mise à jour (${(sb.filter(b => b[0] === 'update').at(-1) || []).slice(1).join(' ')})`);
   await sim.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
   await sim.waitForTimeout(300);
 
