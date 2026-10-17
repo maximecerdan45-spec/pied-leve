@@ -114,6 +114,8 @@ function serve() {
   console.log(`Écart avec la vraie position : ${gapMed.toFixed(1)} m en moyenne, ${gapMax.toFixed(1)} m au pire (GPS bruité de ±4 m)`);
   console.log(`Plus forte rotation en une image : véhicule ${maxTurn.toFixed(1)}°, caméra ${maxCam.toFixed(1)}°`);
   const ok = maxStep < 1 && vLo > V * 3.6 * 0.75 && vHi < V * 3.6 * 1.25 && maxAcc < 4 && maxTurn < 2 && maxCam < 1 && gapMax < 20;
-  console.log(ok ? 'RÉUSSI : le véhicule avance de façon régulière, sans tremblement' : 'ÉCHEC : le véhicule tremble ou avance par à-coups');
+  const bad = [[maxStep < 1, 'saut de position'], [vLo > V * 3.6 * 0.75 && vHi < V * 3.6 * 1.25, 'vitesse affichée'], [maxAcc < 4, 'variation de vitesse'],
+    [maxTurn < 2, 'rotation du véhicule'], [maxCam < 1, 'rotation de la caméra'], [gapMax < 20, 'écart avec la vraie position']].filter(c => !c[0]).map(c => c[1]);
+  console.log(ok ? 'RÉUSSI : le véhicule avance de façon régulière, sans tremblement' : `ÉCHEC : le véhicule tremble ou avance par à-coups (critère en échec : ${bad.join(', ')})`);
   process.exit(ok ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
