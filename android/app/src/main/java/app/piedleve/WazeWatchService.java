@@ -31,6 +31,12 @@ public class WazeWatchService extends Service {
     private static final int NOTIF_ID = 4242;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
+    // Compte rendu pour le journal de l'appli
+    static volatile boolean running = false;
+    static volatile long lastTick = 0;
+    static volatile String lastForeground = "";
+    static volatile int launches = 0;
+    static volatile String lastError = "";
     private String foreground = "";
     private boolean handledThisWazeSession = false;
     private long lastQuery = 0;
@@ -57,7 +63,8 @@ public class WazeWatchService extends Service {
         public void run() {
             try {
                 check();
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                lastError = String.valueOf(e.getMessage());
             }
             handler.postDelayed(this, 2000);
         }
@@ -85,6 +92,7 @@ public class WazeWatchService extends Service {
         if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         else startForeground(NOTIF_ID, n);
         lastQuery = System.currentTimeMillis() - 5000;
+        running = true;
         handler.post(tick);
     }
 
@@ -100,6 +108,7 @@ public class WazeWatchService extends Service {
     @Override
     public void onDestroy() {
         handler.removeCallbacks(tick);
+        running = false;
         super.onDestroy();
     }
 
@@ -112,6 +121,7 @@ public class WazeWatchService extends Service {
         UsageStatsManager um = (UsageStatsManager) getSystemService(Context.USAGE_STATS_SERVICE);
         if (um == null) return;
         long now = System.currentTimeMillis();
+        lastTick = now;
         UsageEvents ev = um.queryEvents(lastQuery, now);
         lastQuery = now;
         UsageEvents.Event e = new UsageEvents.Event();
@@ -119,6 +129,7 @@ public class WazeWatchService extends Service {
             ev.getNextEvent(e);
             if (e.getEventType() == UsageEvents.Event.MOVE_TO_FOREGROUND) foreground = e.getPackageName();
         }
+        lastForeground = foreground;
         if (!WAZE.equals(foreground)) {
             // Waze n'est plus devant (sauf si c'est Pied Levé lui-même) : la prochaine ouverture de Waze relancera un trajet
             if (!getPackageName().equals(foreground)) handledThisWazeSession = false;
@@ -130,6 +141,11 @@ public class WazeWatchService extends Service {
         if (i == null) return;
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         i.putExtra("autostart", true);
-        startActivity(i);
+        try {
+            startActivity(i);
+            launches++;
+        } catch (Exception ex) {
+            lastError = "ouverture de Pied Levé refusée : " + ex.getMessage();
+        }
     }
 }

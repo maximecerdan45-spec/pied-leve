@@ -760,14 +760,14 @@ const SETUP=[
 const SET={st:null,first:{},timer:null};
 const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } }, lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
 async function setupCheck(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.checkSetup) return null;
-  try{ const r=await B.checkSetup(); r.xiaomiNeeded=/xiaomi|redmi|poco/.test(r.maker||''); r.xiaomi=lsGet('pl-xiaomi-ok')==='1'; SET.st=r; return r; }catch(e){ return null; } }
+  try{ const r=await B.checkSetup(); try{ if(B.watchStatus) r.watch=await B.watchStatus(); }catch(e){} r.xiaomiNeeded=/xiaomi|redmi|poco/.test(r.maker||''); r.xiaomi=lsGet('pl-xiaomi-ok')==='1'; SET.st=r; return r; }catch(e){ return null; } }
 function setupItems(){ const r=SET.st; return r?SETUP.filter(i=>(i.k!=='xiaomi'||r.xiaomiNeeded)&&(i.k!=='autostart'||r.waze)):[]; }
 function setupMissing(){ const r=SET.st; return r?setupItems().filter(i=>!i.optional&&!r[i.k]).length:0; }
 function setupRender(){
   const r=SET.st; if(!r) return; const list=$('setupList'); list.textContent='';
   setupItems().forEach((it,n)=>{ const ok=!!r[it.k], row=document.createElement('div'); row.className='srow'+(ok?' ok':'');
     row.innerHTML=`<div class="st">${ok?'✓':n+1}</div><div class="tx"><b></b><small></small></div><button class="tbtn" type="button"></button>`;
-    row.querySelector('b').textContent=it.t; row.querySelector('small').textContent=ok?(it.k==='autostart'?'Activé : le trajet démarre quand Waze s’ouvre.':'C’est fait.'):it.d;
+    row.querySelector('b').textContent=it.t; row.querySelector('small').textContent=ok?(it.k==='autostart'?(r.watch&&!r.watch.running?'Activé, mais la veille ne tourne pas : touchez « Couper » puis « Activer ». Sur Xiaomi, autorisez aussi « Démarrage automatique » pour Pied Levé.':`Activé : le trajet démarre quand Waze s’ouvre.${r.watch&&r.watch.foreground?` (veille en marche, appli vue devant : ${r.watch.foreground==='com.waze'?'Waze':r.watch.foreground})`:' (veille en marche)'}`):'C’est fait.'):it.d;
     const bt=row.querySelector('button'); bt.textContent=it.manual&&SET.first[it.k]===false?'C’est fait':it.b;
     if(it.k==='autostart'){ if(ok){ bt.textContent='Couper'; bt.style.display='block'; } else if(!r.usage) bt.textContent='Ouvrir'; }
     bt.onclick=()=>{ if(it.manual&&SET.first[it.k]===false){ lsSet('pl-xiaomi-ok','1'); setupCheck().then(setupRender); return; }
@@ -803,7 +803,9 @@ let APPVER='Version web';
 async function nativeReport(){ if(!NATIVE) return; const r=[];
   for(const [k,n] of [['TextToSpeech','voix'],['KeepAwake','écran allumé'],['BackgroundGeolocation','GPS arrière-plan'],['Bubble','bulle']]) r.push(`${n} ${PLUG[k]?'présent':'absent'}`);
   try{ const st=await setupCheck(); if(st) r.push('réglages : '+setupItems().map(i=>`${i.t.toLowerCase()} ${st[i.k]?'oui':'non'}`).join(', ')+(st.maker?` (téléphone ${st.maker})`:'')); }catch(e){ r.push('réglages injoignables ('+((e&&e.message)||e)+')'); }
-  logLine('Modules Android : '+r.join(', ')); }
+  logLine('Modules Android : '+r.join(', '));
+  try{ const w=await PLUG.Bubble.watchStatus();
+    logLine(`Veille Waze : ${w.on?'activée':'coupée'}, accès aux données d’utilisation ${w.usage?'oui':'non'}, ${w.running?`tourne (dernière vérification il y a ${w.ago} s)`:'ne tourne pas'}, appli vue devant : ${w.foreground||'aucune'}, démarrages lancés : ${w.launches}${w.lastError?`, erreur : ${w.lastError}`:''}`); }catch(e){} }
 
 function updateCue(g){
   if(!S.running) return;
@@ -1146,6 +1148,9 @@ function startNativeGps(){
       if(S.running&&S.watch==null) S.watch=navigator.geolocation.watchPosition(onFix,onGeoErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000}); });
   return true;
 }
+async function watchReport(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.watchStatus) return; try{ const w=await B.watchStatus();
+  const t=`Veille Waze : ${w.on?'activée':'coupée'}, ${w.running?`tourne (dernière vérification il y a ${w.ago} s)`:'ne tourne pas'}, appli vue devant : ${w.foreground||'aucune'}, démarrages lancés : ${w.launches}${w.lastError?`, erreur : ${w.lastError}`:''}`;
+  logLine(t); try{ const ta=$('eLog'); if(ta&&!$('ovEnd').hidden) ta.value+='\n'+S.log.lines[S.log.lines.length-1]; }catch(e){} }catch(e){} }
 function stopNativeGps(){ const B=PLUG.BackgroundGeolocation; if(bgWatch!=null&&B){ B.removeWatcher({id:bgWatch}).catch(()=>{}); } bgWatch=null; }
 function start(mode){
   if(!window.isSecureContext){ $('startMsg').textContent='Cette page doit être ouverte en https pour accéder au GPS.'; return; }
@@ -1165,7 +1170,7 @@ function start(mode){
 function end(){
   if(!S.running) return; S.running=false; flReport();
   if(S.watch!=null){ navigator.geolocation.clearWatch(S.watch); S.watch=null; }
-  stopNativeGps(); bubbleHide(); bubbleReport(); bubbleArm(false);
+  stopNativeGps(); bubbleHide(); bubbleReport(); watchReport(); bubbleArm(false);
   try{ wake&&wake.release(); }catch(e){} try{ if(NATIVE&&PLUG.KeepAwake) PLUG.KeepAwake.allowSleep(); }catch(e){}
   const L=S.log, dur=(Date.now()-L.t0)/1000;
   $('eDist').textContent=`${nf(L.dist/1000,1)} km`;
