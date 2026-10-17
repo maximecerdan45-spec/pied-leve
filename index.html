@@ -87,6 +87,7 @@ details.safe strong{color:var(--brake)}
 .msg{margin:0;font-size:13px;color:var(--brake)}
 .install{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
 .install .tbtn{flex:none}
+.upd{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(104px + env(safe-area-inset-bottom));z-index:60;background:var(--ink);color:var(--surface);border:0;border-radius:999px;padding:10px 16px;font:600 14px/1.2 Barlow,system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 
 /* ---- conduite ---- */
 #drive{position:fixed;inset:0;z-index:3;pointer-events:none}
@@ -976,10 +977,37 @@ function end(){
     `Distance ${nf(L.dist/1000,2)} km · durée ${Math.round(dur)} s`,`Conseils lever le pied : ${L.cues} · suivis : ${L.fol} · freinages forts : ${L.hard}`,
     `Obstacles passés : ${L.passes.length} · au-dessus de la cible +5 km/h : ${over}`,`Carburant estimé : ${nf(S.eco.fuel,3)} L · économisé estimé : ${nf(S.eco.saved,3)} L sur ${nf(S.eco.coast/1000,2)} km pied levé`,'',...L.lines].join('\n');
   $('eLog').value=txt; try{ localStorage.setItem('piedleve-dernier-journal',txt); }catch(e){}
-  $('ovEnd').hidden=false;
+  $('ovEnd').hidden=false; applyUpdate();
 }
 $('bReal').onclick=()=>start('real'); $('bSim').onclick=()=>start('sim');
-$('bEnd').onclick=end; $('bAgain').onclick=()=>{ $('ovEnd').hidden=true; $('drive').hidden=true; $('ovStart').hidden=false; glHome(); };
+$('bEnd').onclick=end; $('bAgain').onclick=()=>{ if(UPD.ready){ location.reload(); return; } $('ovEnd').hidden=true; $('drive').hidden=true; $('ovStart').hidden=false; glHome(); };
+
+/* ===== Mise à jour automatique =====
+   À l'ouverture, au retour dans l'appli et toutes les 3 minutes, on compare la page en ligne
+   avec celle chargée. Si elle a changé : rechargement tout de suite sur l'écran d'accueil,
+   jamais en plein trajet ni sur le bilan (un bouton propose alors la mise à jour). */
+const UPD={sig:null,ready:false,busy:false};
+const pageSig=t=>{ let h=2166136261; for(let i=0;i<t.length;i++){ h^=t.charCodeAt(i); h=Math.imul(h,16777619); } return t.length+':'+(h>>>0); };
+async function checkUpdate(){
+  if(UPD.busy||!navigator.onLine) return; UPD.busy=true;
+  try{
+    const r=await fetch('./index.html',{cache:'no-store'}); if(!r.ok) return;
+    const sig=pageSig(await r.text());
+    if(UPD.sig==null){ UPD.sig=sig; return; }
+    if(sig!==UPD.sig){ UPD.ready=true; applyUpdate(); }
+  }catch(e){} finally{ UPD.busy=false; }
+}
+function applyUpdate(){
+  if(!UPD.ready) return;
+  if(!S.running&&$('ovEnd').hidden&&!PLAN&&!$('qDest').value){ location.reload(); return; }
+  if(!$('updBtn')){ const b=document.createElement('button'); b.id='updBtn'; b.className='upd'; b.type='button';
+    b.textContent=S.running?'Nouvelle version prête : elle s’installera à la fin du trajet':'Nouvelle version : toucher pour mettre à jour';
+    b.onclick=()=>{ if(!S.running) location.reload(); }; document.body.append(b); }
+  else $('updBtn').textContent=S.running?'Nouvelle version prête : elle s’installera à la fin du trajet':'Nouvelle version : toucher pour mettre à jour';
+}
+if(location.protocol!=='file:'){ checkUpdate(); setInterval(checkUpdate,180000);
+  document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') checkUpdate(); });
+  addEventListener('online',checkUpdate); }
 $('bCopy').onclick=async()=>{ const ta=$('eLog'); try{ await navigator.clipboard.writeText(ta.value); $('bCopy').textContent='Journal copié'; }catch(e){ ta.focus(); ta.select(); $('bCopy').textContent='Sélectionné : copiez-le'; } setTimeout(()=>$('bCopy').textContent='Copier le journal',2500); };
 addEventListener('resize',()=>{ dpr=Math.min(2,window.devicePixelRatio||1); });
 /* ===== Appli installable ===== */
