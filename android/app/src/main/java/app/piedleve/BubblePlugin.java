@@ -52,8 +52,8 @@ public class BubblePlugin extends Plugin {
     private LinearLayout card;
     // Jauge d'approche : la carte se remplit d'orange jusqu'au moment de lever le pied
     private android.graphics.drawable.ClipDrawable fill;
-    private float progress = -1f;
-    private int curLevel = 0;
+    private float progress = -1f, rate = 0f, fillRate = 0f;
+    private android.animation.ValueAnimator fillAnim;
     private BubbleIcon icon;
     private int curColor = 0;
     private String curIcon = "";
@@ -307,6 +307,8 @@ public class BubblePlugin extends Plugin {
         iconKind = call.getString("icon", iconKind);
         Double p = call.getDouble("progress");
         progress = p == null ? -1f : p.floatValue();
+        Double rt = call.getDouble("rate");
+        rate = rt == null ? 0f : rt.floatValue();
     }
 
     /** Début / fin de trajet : la bulle s'affichera d'elle-même quand l'appli passe derrière. */
@@ -445,17 +447,48 @@ public class BubblePlugin extends Plugin {
             icon.setKind(iconKind);
         }
         curColor = c;
-        int lvl = progress < 0 ? 0 : Math.round(Math.max(0f, Math.min(1f, progress)) * 10000);
-        if (lvl != curLevel) {
-            android.animation.ValueAnimator fa = android.animation.ValueAnimator.ofInt(curLevel, lvl);
-            fa.setDuration(lvl == 0 ? 120 : 300);
-            fa.addUpdateListener(a -> fill.setLevel((int) a.getAnimatedValue()));
-            fa.start();
-            curLevel = lvl;
-        }
+        updateFill();
         line1.setText(l1);
         line2.setText(l2);
         line2.setVisibility(l2 == null || l2.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    /**
+     * Jauge d'approche : remplissage régulier (linéaire) à la vitesse donnée par l'appli, sans attendre
+     * la mise à jour suivante ; on ne repart de la valeur reçue que si l'écart devient grand.
+     */
+    private void updateFill() {
+        float cur = fill.getLevel() / 10000f;
+        if (progress < 0) {
+            if (fillAnim != null) fillAnim.cancel();
+            fillAnim = null;
+            fillRate = 0f;
+            if (cur > 0) {
+                android.animation.ValueAnimator out = android.animation.ValueAnimator.ofInt(fill.getLevel(), 0);
+                out.setDuration(120);
+                out.addUpdateListener(a -> fill.setLevel((int) a.getAnimatedValue()));
+                out.start();
+            }
+            return;
+        }
+        float p = Math.max(0f, Math.min(1f, progress));
+        boolean jump = p > cur + 0.12f || p < cur - 0.3f; // très en retard, ou nouvel obstacle
+        boolean running = fillAnim != null && fillAnim.isRunning();
+        boolean newRate = Math.abs(rate - fillRate) > fillRate * 0.3f + 0.002f;
+        if (running && !jump && !newRate) return;
+        if (fillAnim != null) fillAnim.cancel();
+        float start = jump ? p : cur;
+        fillRate = rate;
+        if (rate <= 0.0005f || start >= 1f) {
+            fill.setLevel(Math.round(start * 10000));
+            fillAnim = null;
+            return;
+        }
+        fillAnim = android.animation.ValueAnimator.ofInt(Math.round(start * 10000), 10000);
+        fillAnim.setInterpolator(new android.view.animation.LinearInterpolator());
+        fillAnim.setDuration(Math.max(50L, (long) ((1f - start) / rate * 1000f)));
+        fillAnim.addUpdateListener(a -> fill.setLevel((int) a.getAnimatedValue()));
+        fillAnim.start();
     }
 
     /** Pictogramme de la bulle : les mêmes dessins que dans l'appli (grille de 48). */

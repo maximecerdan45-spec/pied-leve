@@ -29,7 +29,7 @@
   --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
   color-scheme:light;
 }
-@media (prefers-color-scheme: dark){ :root{
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#0E1312; --surface:#161C1B; --ink:#E5ECE8; --muted:#93A09A; --line:#2A3331; --accent:#62B4D0; --route:#4BA9E8;
   --go:#3DBA77; --lift:#F2A33A; --brake:#EE5D52; --go-strong:#2E9E63;
   --cue-go:#3DBA77; --cue-lift:#F2A33A; --cue-brake:#EE6A60; --cue-wait:#62B4D0; --on-cue:#0D1211;
@@ -37,6 +37,15 @@
   --shadow:0 6px 22px rgba(0,0,0,.5);
   color-scheme:dark;
 }}
+/* mode nuit (automatique au coucher du soleil, ou forcé dans le menu) */
+:root[data-theme="dark"]{
+  --bg:#0E1312; --surface:#161C1B; --ink:#E5ECE8; --muted:#93A09A; --line:#2A3331; --accent:#62B4D0; --route:#4BA9E8;
+  --go:#3DBA77; --lift:#F2A33A; --brake:#EE5D52; --go-strong:#2E9E63;
+  --cue-go:#3DBA77; --cue-lift:#F2A33A; --cue-brake:#EE6A60; --cue-wait:#62B4D0; --on-cue:#0D1211;
+  --ground:#131918; --road:#2E3836; --road-edge:#090D0C; --minor:#232B2A; --travel:#4D5855;
+  --shadow:0 6px 22px rgba(0,0,0,.5);
+  color-scheme:dark;
+}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--ground);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.4;overflow:hidden;overscroll-behavior:none}
 button{font:inherit;color:inherit}
@@ -103,7 +112,7 @@ details.safe strong{color:var(--brake)}
 .cue .pb{position:absolute;left:0;bottom:0;height:7px;background:var(--lift);width:0}
 /* approche : tout le bandeau se remplit d'orange, de plus en plus franc, jusqu'au moment de lever le pied */
 .cue>svg,.cue>div:not(.pb){position:relative;z-index:1}
-.cue.prep .pb{top:0;height:auto;opacity:.4;box-shadow:inset -5px 0 0 var(--cue-lift);transition:width .3s linear,opacity .3s}
+.cue.prep .pb{top:0;height:auto;opacity:.4;box-shadow:inset -5px 0 0 var(--cue-lift);transition:opacity .3s}
 .cue.prep.near .pb{opacity:1}
 .cue.prep.near svg{color:var(--ink)}
 .cue.prep .t{font-size:30px}
@@ -310,6 +319,7 @@ details.more p{font-size:14px}
     <div class="mgroup">
       <button class="mrow" id="bSetup" type="button" hidden><span><b>Démarrer avec Waze</b><small id="mWaze"></small></span></button>
       <button class="mrow" id="bSound" type="button" role="switch" aria-checked="true"><span><b>Voix</b></span><i class="sw" aria-hidden="true"></i></button>
+      <button class="mrow" id="bNight" type="button"><span><b>Mode nuit</b><small id="mNight">Automatique</small></span></button>
       <button class="mrow" id="bVoiceStyle" type="button"><span><b>Style de voix</b><small id="mVoiceStyle">Sobre</small></span></button>
     </div>
     <div class="mgroup">
@@ -933,7 +943,7 @@ function bubbleInfo(g){
     case 'stopzone': return e&&e.type==='arrivee'?{color:'#A85E05',icon:'stop',line1:'ARRIVÉE',line2:fmtD(Math.max(0,g.dn))}:{color:'#B3332B',icon:'stop',line1:'STOP',line2:fmtD(Math.max(0,g.dn))};
     case 'brake': return {color:'#B3332B',icon:'brake',line1:'FREINEZ',line2:fmtD(g.dn)};
     case 'lift': return {color:'#A85E05',icon:'lift',line1:'LEVEZ LE PIED',line2:fmtD(g.dn)};
-    case 'prep': return {color:'#1C5A72',icon:'prep',line1:'LEVEZ DANS',line2:fmtD(g.liftAt),progress:Math.round(clamp(1-g.liftAt/350,0,1)*20)/20}; // la bulle se remplit d'orange
+    case 'prep': return {color:'#1C5A72',icon:'prep',line1:'LEVEZ DANS',line2:fmtD(g.liftAt),progress:Math.round((S.gauge?S.gauge.p:0)*10)/10,rate:Math.round((S.gauge?S.gauge.rate:0)*1000)/1000}; // la bulle se remplit d'orange, à vitesse régulière (Android anime entre deux mises à jour)
     default: return {color:'#1E7A4C',icon:'go',line1:'ROULEZ',line2:kmh};
   }
 }
@@ -1025,6 +1035,14 @@ async function nativeReport(){ if(!NATIVE) return; const r=[];
   try{ const w=await PLUG.Bubble.watchStatus();
     logLine(`Veille Waze : ${w.on?'activée':'coupée'}, accès aux données d’utilisation ${w.usage?'oui':'non'}, ${w.running?`tourne (dernière vérification il y a ${w.ago} s)`:'ne tourne pas'}, appli vue devant : ${w.foreground||'aucune'}, démarrages lancés : ${w.launches}${w.lastError?`, erreur : ${w.lastError}`:''}`); }catch(e){} }
 
+// Jauge d'approche : avance de façon régulière à la vitesse de la voiture (comme une aiguille),
+// puis se recale en douceur sur la distance restante ; elle ne recule jamais. Une jauge par obstacle.
+function gaugeP(g){ const now=performance.now(), key=g.e?g.e.key:'', target=clamp(1-g.liftAt/350,0,1);
+  const v=S.mode==='sim'?SIM.v*(SIM.mult||1):(S.vS??S.v);
+  let G=S.gauge; if(!G||G.key!==key){ G=S.gauge={key,p:target,t:now,rate:0}; }
+  const dt=Math.min(1.2,Math.max(0,(now-G.t)/1000)); G.t=now;
+  let p=G.p+v*dt/350; p+=(target-p)*Math.min(1,dt*0.6);
+  G.p=clamp(Math.max(G.p,p),0,1); G.rate=Math.max(0,v/350); return G.p; }
 function updateCue(g){
   if(!S.running) return;
   updateCueCore(g); bubbleSet(g);
@@ -1040,7 +1058,7 @@ function updateCueCore(g){
     case 'brake': setCue('brake','brake','Freinez doucement',`${tgt} dans ${fmtD(g.dn)}`); break;
     case 'lift': setCue('lift','lift','Levez le pied', e.hard?`${tgt} dans ${fmtD(g.dn)} · l’élan suffit`:`${e.label} dans ${fmtD(g.dn)} · anticipez`); break;
     case 'hold': setCue('go','go','Bonne allure', e.vt?`${e.label} dans ${fmtD(g.dn)} · gardez ${e.vt} km/h`:`${e.label} dans ${fmtD(g.dn)} · laissez rouler`); break;
-    case 'prep': setCue('prep','prep',`Levez le pied dans ${fmtD(g.liftAt)}`,`${tgt} dans ${fmtD(g.dn)}`,1-g.liftAt/350); break;
+    case 'prep': setCue('prep','prep',`Levez le pied dans ${fmtD(g.liftAt)}`,`${tgt} dans ${fmtD(g.dn)}`,gaugeP(g)); break;
     default: setCue('go','go','Roulez normalement', g.info?`Prochain : ${g.info.e.label} dans ${fmtD(g.info.dn)}`:'Rien à anticiper devant');
   }
   // voix + bips
@@ -1067,6 +1085,37 @@ $('bSound').onclick=()=>setVoice(!voiceOn); $('bMute').onclick=()=>setVoice(!voi
 const cv=$('cv'), ctx=cv.getContext('2d'); let T={}, camH=null, ppm=1.4, dpr=Math.min(2,window.devicePixelRatio||1);
 function readTheme(){ const cs=getComputedStyle(document.documentElement); for(const k of ['surface','ink','muted','line','accent','go','lift','brake','ground','road','road-edge','minor','travel','sign-red','sign-white','sign-ink']) T[k]=cs.getPropertyValue('--'+k).trim(); }
 readTheme(); try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('change',readTheme); }catch(e){}
+/* ===== Mode nuit : sombre entre le coucher et le lever du soleil (calculés pour votre position), ou forcé ===== */
+const NIGHT={mode:'auto',dark:null};
+try{ const m=localStorage.getItem('pl-night'); if(['auto','on','off'].includes(m)) NIGHT.mode=m; }catch(e){}
+// hauteur du soleil (degrés) à une position et une heure données
+function sunAlt(lat,lon,date){ const r=Math.PI/180, d=(date.getTime()-Date.UTC(2000,0,1,12))/864e5;
+  const L=(280.46+0.9856474*d)%360, gm=(357.528+0.9856003*d)%360, lam=(L+1.915*Math.sin(gm*r)+0.02*Math.sin(2*gm*r))*r, eps=(23.439-4e-7*d)*r;
+  const dec=Math.asin(Math.sin(eps)*Math.sin(lam)), ra=Math.atan2(Math.cos(eps)*Math.sin(lam),Math.cos(lam));
+  const gmst=((18.697374558+24.06570982441908*d)%24+24)%24, ha=(gmst*15+lon)*r-ra;
+  return Math.asin(Math.sin(lat*r)*Math.sin(dec)+Math.cos(lat*r)*Math.cos(dec)*Math.cos(ha))/r; }
+function nightPos(){ if(S.ref) return [S.ref.lat,S.ref.lon]; try{ const p=JSON.parse(localStorage.getItem('pl-lastpos')||'null'); if(p) return p; }catch(e){} return [46.6,2.4]; }
+function nightApply(){ let dark;
+  if(NIGHT.mode==='on') dark=true; else if(NIGHT.mode==='off') dark=false;
+  else { const [la,lo]=nightPos(); dark=sunAlt(la,lo,new Date())<-3; }
+  $('mNight').textContent=NIGHT.mode==='auto'?`Automatique (${dark?'nuit':'jour'})`:NIGHT.mode==='on'?'Toujours':'Jamais';
+  if(dark===NIGHT.dark) return; NIGHT.dark=dark;
+  document.documentElement.dataset.theme=dark?'dark':'light'; readTheme(); mapTheme(dark); }
+$('bNight').onclick=()=>{ NIGHT.mode={auto:'on',on:'off',off:'auto'}[NIGHT.mode]; try{ localStorage.setItem('pl-night',NIGHT.mode); }catch(e){} nightApply(); };
+setInterval(()=>{ if(S.ref){ try{ localStorage.setItem('pl-lastpos',JSON.stringify([S.ref.lat,S.ref.lon])); }catch(e){} } nightApply(); },60000);
+// Carte de nuit : on assombrit le fond, l'eau, la végétation et les routes ; les couleurs de jour sont gardées pour revenir
+const MAP_DAY=new Map();
+function mapTheme(dark){ if(!GL||!MAP) return;
+  const set=(id,prop,val)=>{ try{ const k=id+'|'+prop; if(!MAP_DAY.has(k)) MAP_DAY.set(k,MAP.getPaintProperty(id,prop)); MAP.setPaintProperty(id,prop,dark?val:MAP_DAY.get(k)); }catch(e){} };
+  for(const l of MAP.getStyle().layers||[]){ const id=l.id;
+    if(l.type==='background') set(id,'background-color','#111716');
+    else if(l.type==='fill') set(id,'fill-color',/water/i.test(id)?'#0E2230':/park|wood|grass|landcover|forest|green/i.test(id)?'#14211A':'#161D1C');
+    else if(l.type==='line'&&!['route','route-case','ahead'].includes(id)){
+      if(/water|river|stream/i.test(id)) set(id,'line-color','#0E2230');
+      else if(/casing|case/i.test(id)) set(id,'line-color','#0A0E0D');
+      else if(/road|street|highway|motorway|trunk|primary|secondary|tertiary|minor|service|track|path|bridge|tunnel/i.test(id)) set(id,'line-color','#3B4745');
+      else set(id,'line-color','#2A3331'); }
+    else if(l.type==='symbol'){ set(id,'text-color','#C9D3CF'); set(id,'text-halo-color','#0E1312'); } } }
 function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 function draw(g,adv,dtR){
   const W=cv.clientWidth,H=cv.clientHeight; if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){ cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); }
@@ -1172,7 +1221,7 @@ function initMap(){
       MAP.addLayer({id:'route',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#2A8FD6','line-width':['interpolate',['linear'],['zoom'],10,3.5,17,13]}});
       MAP.addSource('ahead',{type:'geojson',data:EMPTY});
       MAP.addLayer({id:'ahead',type:'line',source:'ahead',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],13,5,18,16],'line-color':['match',['get','c'],1,'#E58A10',2,'#D3433A','#24965C']}});
-      GL=true; $('cv').hidden=true;
+      GL=true; $('cv').hidden=true; if(NIGHT.dark) mapTheme(true);
       if(S.running) glDrive(); else glHome();
     });
   }catch(e){ MAP=null; GL=false; }
@@ -1251,6 +1300,7 @@ function drawGL(g,adv,dtR,ts){
   else if(liftMk){ liftMk.remove(); liftMk=null; }
 }
 initMap();
+nightApply(); // mode nuit dès l'ouverture
 
 /* ===== Simulation (tester sans rouler) ===== */
 const SIM={v:0,s:0,acc:0,wait:0,lat:0,lon:0,hd:null,mult:2,done:false};
@@ -1356,7 +1406,7 @@ async function keepAwake(){ try{ if(NATIVE&&PLUG.KeepAwake){ await PLUG.KeepAwak
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.running) keepAwake(); else if(S.running) logLine('Page passée en arrière-plan'); });
 function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative(voiceTxt('ready')); return; } if(!voiceOn) return; try{ const u=new SpeechSynthesisUtterance(voiceTxt('ready')); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
 function reset(){
-  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},curveMem:[],cheer:null,liftShown:null,vS:null,veh:null,auto:false,idleSince:0,autoEnd:false,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
+  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},curveMem:[],cheer:null,gauge:null,liftShown:null,vS:null,veh:null,auto:false,idleSince:0,autoEnd:false,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
   $('hEco').textContent='0,00 L'; $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
   camH=null; Object.assign(SIM,{v:0,s:0,acc:0,wait:0,done:false});
 }
