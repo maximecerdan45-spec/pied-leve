@@ -56,6 +56,8 @@ public class BubblePlugin extends Plugin {
     static volatile boolean autostartPending = false;
     // Dernier passage de Pied Levé au premier plan (la veille vérifie que l'ouverture a bien eu lieu)
     static volatile long lastResumeAt = 0;
+    // Fin de trajet demandée par la personne (la veille ne relance pas aussitôt)
+    static volatile long lastManualEnd = 0;
     private static BubblePlugin instance;
 
     @Override
@@ -276,6 +278,7 @@ public class BubblePlugin extends Plugin {
     @PluginMethod
     public void arm(PluginCall call) {
         armed = Boolean.TRUE.equals(call.getBoolean("active", false));
+        if (!armed && Boolean.TRUE.equals(call.getBoolean("manual", false))) lastManualEnd = System.currentTimeMillis();
         tripActive = armed;
         if (armed) {
             // trajet lancé : la notification « Waze est ouvert » n'a plus lieu d'être
