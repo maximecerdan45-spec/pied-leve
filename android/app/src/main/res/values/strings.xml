@@ -4,4 +4,8 @@
     <string name="title_activity_main">Pied Levé</string>
     <string name="package_name">app.piedleve</string>
     <string name="custom_url_scheme">app.piedleve</string>
+    <!-- Notification affichée pendant un trajet (GPS en arrière-plan) -->
+    <string name="capacitor_background_geolocation_notification_channel_name">Trajet en cours</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_notif</string>
+    <string name="capacitor_background_geolocation_notification_color">#3DBA77</string>
 </resources>
