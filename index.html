@@ -1381,6 +1381,8 @@ addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); installEvt=e; $(
 $('bInstall').onclick=async()=>{ if(!installEvt) return; installEvt.prompt(); try{ const r=await installEvt.userChoice; if(r.outcome==='accepted'){ $('installBox').hidden=true; } }catch(e){} installEvt=null; };
 addEventListener('appinstalled',()=>{ $('installBox').hidden=true; $('installHint').hidden=true; });
 if(!NATIVE&&'serviceWorker' in navigator&&location.protocol==='https:'){ navigator.serviceWorker.register('sw.js').catch(()=>{}); }
+// Page « Labo » (labo.html) : l'appli tourne dans un cadre et la page pilote la simulation et imite la bulle
+if(/[?&]labo\b/.test(location.search)) window.PL_LABO={start,end,SIM,get S(){ return S; },get bubble(){ return BUB.info; },get voice(){ return voiceOn; },setVoice};
 })();
 </script>
 </body>

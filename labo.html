@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Pied Levé · Labo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Labo : l'appli tourne en simulation dans le cadre ; « Passer sur Waze » montre un faux écran Waze avec la bulle,
+   comme sur le téléphone (même couleurs, pictogrammes et textes que la vraie bulle). */
+:root{
+  --bg:#F1F3EF; --surface:#FFFFFF; --ink:#17201C; --muted:#4A5550; --line:#D8DDD5; --accent:#1C5A72; --go:#1E7A4C;
+  --f-display:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif; --f-body:"Barlow",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#0E1312; --surface:#161C1B; --ink:#E5ECE8; --muted:#A3B0AA; --line:#2A3331; --accent:#62B4D0; --go:#3DBA77; color-scheme:dark; } }
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);display:flex;flex-direction:column;align-items:center;overflow:hidden}
+.bar{width:100%;max-width:560px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:calc(env(safe-area-inset-top,0px) + 10px) 16px 10px}
+.bar h1{font:700 20px var(--f-display);margin:0 auto 0 0}
+.bar h1 span{color:var(--go)}
+button{font:inherit;color:inherit;cursor:pointer}
+.b{border:0;border-radius:12px;padding:0 14px;min-height:44px;font:600 15px var(--f-body);background:var(--surface);box-shadow:inset 0 0 0 1px var(--line)}
+.b.go{background:var(--go);color:#fff;box-shadow:none}
+.b[aria-pressed="true"]{background:var(--ink);color:var(--bg);box-shadow:none}
+.seg{display:flex;border-radius:12px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
+.seg .b{border-radius:0;box-shadow:none;background:var(--surface);min-width:44px;padding:0 10px}
+.seg .b[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.stage{position:relative;flex:1;width:100%;max-width:430px;min-height:0;margin-bottom:calc(env(safe-area-inset-bottom,0px) + 10px)}
+@media (min-width:600px){ .stage{max-width:400px;max-height:840px;border-radius:32px;overflow:hidden;box-shadow:0 0 0 10px #17201C,0 20px 60px rgba(0,0,0,.3);margin-top:16px;margin-bottom:24px} }
+iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#E4E9DE}
+.info{width:100%;max-width:560px;padding:0 16px 8px;font-size:13px;color:var(--muted);min-height:20px}
+
+/* faux écran Waze */
+#waze{position:absolute;inset:0;background:#DDE8EE;overflow:hidden;touch-action:none}
+#waze svg.map{position:absolute;inset:0;width:100%;height:100%}
+.wtop{position:absolute;top:12px;left:12px;right:12px;background:#2E3E48;color:#fff;border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.wtop b{display:block;font:700 22px var(--f-display)}
+.wtop small{opacity:.8;font-size:13px}
+.wtag{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(23,32,28,.75);color:#fff;font-size:12px;padding:6px 12px;border-radius:999px;white-space:nowrap}
+
+/* copie de la bulle Android (176 × 58 dp, coins 26, pictogramme 42) */
+#bubble{position:absolute;width:196px;height:78px;padding:10px;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#bubble .card{width:176px;height:58px;border-radius:26px;background:#3A4440;display:flex;align-items:center;gap:10px;padding:8px 16px 8px 8px;box-shadow:0 4px 14px rgba(0,0,0,.35);transition:background-color .25s,transform .16s;color:#fff}
+#bubble .ico{width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.2);display:grid;place-items:center;flex:none}
+#bubble .ico svg{width:26px;height:26px}
+#bubble .l1{font:700 12px/1.25 Roboto,system-ui,sans-serif;letter-spacing:.04em;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bubble .l2{font:700 24px/1 var(--f-display);white-space:nowrap}
+#bubble .tx{min-width:0;flex:1}
+#bubble.pulse .card{transform:scale(1.08)}
+#bubble.press .card{transform:scale(.96)}
+#bubble.snap{transition:left .22s cubic-bezier(.2,.8,.3,1)}
+#bubble.in .card{animation:pop .18s ease-out}
+@keyframes pop{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>Pied <span>Levé</span> · Labo</h1>
+  <button class="b go" id="bRun" type="button">Lancer la simulation</button>
+  <div class="seg" role="group" aria-label="Vitesse de la simulation">
+    <button class="b" type="button" data-m="1" aria-pressed="false">×1</button>
+    <button class="b" type="button" data-m="2" aria-pressed="true">×2</button>
+    <button class="b" type="button" data-m="4" aria-pressed="false">×4</button>
+  </div>
+  <button class="b" id="bWaze" type="button" aria-pressed="false">Passer sur Waze</button>
+</div>
+<p class="info" id="info">Touchez « Lancer la simulation », puis « Passer sur Waze » pour voir la bulle.</p>
+<div class="stage">
+  <iframe id="app" src="index.html?labo" title="Pied Levé" allow="geolocation"></iframe>
+  <div id="waze" hidden>
+    <svg class="map" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <path d="M-20 300 L 420 360" stroke="#FFFFFF" stroke-width="18" fill="none"/>
+      <path d="M90 -20 L 140 820" stroke="#FFFFFF" stroke-width="14" fill="none"/>
+      <path d="M-20 620 C 120 600, 260 560, 420 600" stroke="#FFFFFF" stroke-width="12" fill="none"/>
+      <path d="M200 820 L 205 520 C 208 430, 250 380, 330 340 L 420 300" stroke="#FFFFFF" stroke-width="26" fill="none"/>
+      <path d="M200 820 L 205 520 C 208 430, 250 380, 330 340 L 420 300" stroke="#3BB0E8" stroke-width="10" fill="none" stroke-linecap="round"/>
+      <circle cx="204" cy="660" r="13" fill="#3BB0E8" stroke="#FFFFFF" stroke-width="4"/>
+    </svg>
+    <div class="wtop"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17V9a4 4 0 014-4h6M14 2l3 3-3 3"/></svg><div><b>Dans 400 m</b><small>Écran imité, pour tester la bulle</small></div></div>
+    <div class="wtag">Faux écran Waze · touchez la bulle pour revenir à Pied Levé</div>
+    <div id="bubble" role="button" tabindex="0" aria-label="Bulle Pied Levé : revenir à l’appli">
+      <div class="card"><div class="ico"><svg id="bIco" viewBox="0 0 48 48" fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"></svg></div>
+      <div class="tx"><div class="l1" id="bL1">PIED LEVÉ</div><div class="l2" id="bL2"></div></div></div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const ICONS = { // mêmes dessins que l'appli et la bulle Android
+    go: '<path d="M24 40V10M12 22l12-12 12 12"/>',
+    prep: '<path d="M14 38h20M24 30V8M15 17l9-9 9 9"/>',
+    lift: '<path d="M14 38h20M24 30V8M15 17l9-9 9 9"/>',
+    brake: '<path d="M24 16v12M24 35v.5"/><path d="M6 41L24 6l18 35z"/>',
+    stop: '<path d="M17 6h14l10 10v14L31 40H17L7 30V16z"/><path d="M17 23h14"/>',
+    wait: '<circle cx="24" cy="24" r="15"/><path d="M24 15v9l6 4"/>'
+  };
+  const app = () => { try { return $('app').contentWindow.PL_LABO || null; } catch (e) { return null; } };
+  let mult = 2, last = '', lastIcon = '';
+
+  // ---- simulation
+  $('bRun').onclick = () => { const A = app(); if (!A) { $('info').textContent = 'L’appli se charge encore, réessayez dans un instant.'; return; }
+    if (A.S.running) { A.end(); return; }
+    A.start('sim'); A.SIM.mult = mult; };
+  document.querySelectorAll('.seg .b').forEach(b => b.onclick = () => {
+    mult = +b.dataset.m; document.querySelectorAll('.seg .b').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    const A = app(); if (A) A.SIM.mult = mult; });
+
+  // ---- faux Waze
+  const setWaze = on => { $('waze').hidden = !on; $('bWaze').setAttribute('aria-pressed', String(on)); $('bWaze').textContent = on ? 'Revenir sur Pied Levé' : 'Passer sur Waze';
+    if (on) { const B = $('bubble'); B.classList.remove('in'); void B.offsetWidth; B.classList.add('in'); place(); } };
+  $('bWaze').onclick = () => setWaze($('waze').hidden);
+
+  // ---- bulle : contenu, glisser, se range contre le bord, toucher = retour à l'appli
+  const B = $('bubble'); let pos = null;
+  function place() { const W = $('waze').clientWidth, H = $('waze').clientHeight;
+    if (!pos) pos = { x: W - 196, y: Math.round(H * 0.35) };
+    pos.x = Math.max(0, Math.min(W - 196, pos.x)); pos.y = Math.max(0, Math.min(H - 78, pos.y));
+    B.style.left = pos.x + 'px'; B.style.top = pos.y + 'px'; }
+  let drag = null;
+  B.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, px: pos.x, py: pos.y, moved: false }; B.setPointerCapture(e.pointerId); B.classList.remove('snap'); B.classList.add('press'); });
+  B.addEventListener('pointermove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) drag.moved = true;
+    if (drag.moved) { pos.x = drag.px + dx; pos.y = drag.py + dy; place(); } });
+  const up = e => { if (!drag) return; B.classList.remove('press'); const d = drag; drag = null;
+    if (!d.moved) { setWaze(false); return; }
+    const W = $('waze').clientWidth; B.classList.add('snap'); pos.x = pos.x + 98 < W / 2 ? 0 : W - 196; place(); };
+  B.addEventListener('pointerup', up); B.addEventListener('pointercancel', up);
+  B.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setWaze(false); } });
+  addEventListener('resize', () => { if (!$('waze').hidden) place(); });
+
+  function tick() {
+    const A = app();
+    if (A) {
+      const run = A.S.running; $('bRun').textContent = run ? 'Arrêter' : 'Lancer la simulation'; $('bRun').classList.toggle('go', !run);
+      if (A.SIM.mult !== mult && run) A.SIM.mult = mult;
+      const i = A.bubble || { color: '#3A4440', icon: 'wait', line1: 'PIED LEVÉ', line2: '' };
+      const k = JSON.stringify(i);
+      if (k !== last) { last = k;
+        B.querySelector('.card').style.backgroundColor = i.color || '#3A4440';
+        $('bL1').textContent = i.line1 || ''; $('bL2').textContent = i.line2 || ''; $('bL2').hidden = !i.line2;
+        const ic = i.icon || 'wait';
+        if (ic !== lastIcon) { $('bIco').innerHTML = ICONS[ic] || ICONS.wait;
+          if (lastIcon && (ic === 'lift' || ic === 'brake' || ic === 'stop')) { B.classList.add('pulse'); setTimeout(() => B.classList.remove('pulse'), 130); }
+          lastIcon = ic; } }
+      const S = A.S; $('info').textContent = run ? `Simulation ×${mult} · ${Math.round((S.vS ?? S.v ?? 0) * 3.6)} km/h · bulle : ${(i.line1 || '').toLowerCase()} ${i.line2 || ''}` : 'Touchez « Lancer la simulation », puis « Passer sur Waze » pour voir la bulle.';
+    }
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
