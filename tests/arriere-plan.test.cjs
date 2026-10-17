@@ -88,6 +88,8 @@ const check = (ok, msg) => { console.log(`${ok ? 'OK   ' : 'ÉCHEC'} ${msg}`); i
   const arms = await page.evaluate(() => __log.bubble.filter(b => b[0] === 'arm').map(b => b[1]));
   check(arms[0] === true && arms.at(-1) === false, 'Android est prévenu du début et de la fin du trajet (il affiche la bulle de lui-même)');
   check(/Bulle : autorisée oui, appli quittée 1 fois, bulle affichée 1 fois/.test(await page.inputValue('#eLog')), 'le journal indique ce qu\'a fait la bulle');
+  const jl = await page.inputValue('#eLog');
+  check(/Fluidité : \d+ images\/s/.test(jl) && /GPS : \d+ positions, une toutes les [\d,]+ s, vitesse fournie par le GPS 100 %/.test(jl), `le journal mesure la fluidité et le GPS (${(jl.match(/GPS : [^\n]*/) || [''])[0]})`);
 
   // Simulation : la bulle doit aussi apparaître, et la simulation continuer quand l'appli est cachée
   const sim = await browser.newPage();
