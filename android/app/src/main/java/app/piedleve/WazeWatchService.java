@@ -37,9 +37,9 @@ public class WazeWatchService extends Service {
     static volatile String lastForeground = "";
     static volatile int launches = 0;
     static volatile String lastError = "";
+    static volatile long lastWazeSeen = 0;
     private String foreground = "";
     private boolean handledThisWazeSession = false;
-    private long lastQuery = 0;
 
     /**
      * « Accès aux données d'utilisation » accordé ? Selon les téléphones, Android répond « autorisé »
@@ -119,7 +119,6 @@ public class WazeWatchService extends Service {
                 .build();
         if (Build.VERSION.SDK_INT >= 34) startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         else startForeground(NOTIF_ID, n);
-        lastQuery = System.currentTimeMillis() - 5000;
         running = true;
         handler.post(tick);
     }
@@ -150,21 +149,35 @@ public class WazeWatchService extends Service {
         if (um == null) return;
         long now = System.currentTimeMillis();
         lastTick = now;
-        UsageEvents ev = um.queryEvents(lastQuery, now);
-        lastQuery = now;
+        // Fenêtre glissante de 20 s : Android enregistre parfois l'ouverture d'une appli avec retard.
+        // On garde le dernier passage au premier plan trouvé (s'il n'y en a pas, l'appli devant n'a pas changé).
+        UsageEvents ev = um.queryEvents(now - 20000, now);
         UsageEvents.Event e = new UsageEvents.Event();
+        long bestT = -1;
+        String best = null;
         while (ev != null && ev.hasNextEvent()) {
             ev.getNextEvent(e);
-            if (e.getEventType() == UsageEvents.Event.MOVE_TO_FOREGROUND) foreground = e.getPackageName();
+            if (e.getEventType() == UsageEvents.Event.MOVE_TO_FOREGROUND && e.getTimeStamp() >= bestT) {
+                bestT = e.getTimeStamp();
+                best = e.getPackageName();
+            }
         }
+        if (best != null) foreground = best;
         lastForeground = foreground;
         if (!WAZE.equals(foreground)) {
             // Waze n'est plus devant (sauf si c'est Pied Levé lui-même) : la prochaine ouverture de Waze relancera un trajet
             if (!getPackageName().equals(foreground)) handledThisWazeSession = false;
             return;
         }
-        if (handledThisWazeSession || BubblePlugin.tripActive) return;
+        lastWazeSeen = now;
+        if (handledThisWazeSession) return;
+        if (BubblePlugin.tripActive) {
+            handledThisWazeSession = true;
+            lastError = "Waze ouvert alors qu'un trajet était déjà en cours";
+            return;
+        }
         handledThisWazeSession = true;
+        final long launchAt = now;
         Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());
         if (i == null) return;
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -175,5 +188,41 @@ public class WazeWatchService extends Service {
         } catch (Exception ex) {
             lastError = "ouverture de Pied Levé refusée : " + ex.getMessage();
         }
+        // Android peut bloquer l'ouverture sans rien dire : si Pied Levé n'est pas passé devant après 3 s,
+        // on propose une notification à toucher pour démarrer.
+        handler.postDelayed(() -> {
+            if (BubblePlugin.lastResumeAt < launchAt && !BubblePlugin.tripActive) {
+                lastError = "ouverture bloquée par Android : notification proposée";
+                notifyStart();
+            }
+        }, 3000);
+    }
+
+    private static final String CHANNEL_START = "pl-start";
+    static final int START_NOTIF_ID = 4243;
+
+    private void notifyStart() {
+        NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        if (Build.VERSION.SDK_INT >= 26) {
+            NotificationChannel ch = new NotificationChannel(CHANNEL_START, "Démarrer avec Waze", NotificationManager.IMPORTANCE_HIGH);
+            nm.createNotificationChannel(ch);
+        }
+        Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (open == null) return;
+        open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        open.putExtra("autostart", true);
+        PendingIntent pi = PendingIntent.getActivity(this, 1, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        Notification n = new NotificationCompat.Builder(this, CHANNEL_START)
+                .setSmallIcon(R.drawable.ic_notif)
+                .setContentTitle("Waze est ouvert")
+                .setContentText("Touchez pour démarrer Pied Levé")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_NAVIGATION)
+                .setAutoCancel(true)
+                .setTimeoutAfter(120000)
+                .setContentIntent(pi)
+                .build();
+        nm.notify(START_NOTIF_ID, n);
     }
 }
