@@ -70,6 +70,22 @@ public class BubblePlugin extends Plugin {
         }
     }
 
+    /**
+     * Appelé chaque seconde par la veille avec l'appli au premier plan : la bulle ne reste
+     * que par-dessus Waze (cachée sur l'écran d'accueil ou dans les autres applis).
+     */
+    static void onForeground(String pkg) {
+        final BubblePlugin p = instance;
+        if (p == null || pkg == null || pkg.isEmpty()) return;
+        if (pkg.equals(p.getContext().getPackageName())) return; // info pas encore à jour : on ne touche à rien
+        p.main.post(() -> {
+            if (!p.armed || !p.inBack) return;
+            if (WazeWatchService.WAZE.equals(pkg)) {
+                if (p.canDraw()) p.display();
+            } else p.remove();
+        });
+    }
+
     static void fireAutostart() {
         if (instance != null) instance.notifyListeners("autostart", new JSObject());
     }
@@ -126,6 +142,8 @@ public class BubblePlugin extends Plugin {
     }
     // Trajet en cours : la bulle s'affiche d'elle-même quand l'appli passe en arrière-plan
     private boolean armed = false;
+    // Pied Levé est derrière une autre appli
+    private boolean inBack = false;
     private String color = "#5A6560", text1 = "PIED LEVÉ", text2 = "";
     // Compte rendu pour le journal de l'appli
     private int pauses = 0, shows = 0;
@@ -330,6 +348,7 @@ public class BubblePlugin extends Plugin {
     @Override
     protected void handleOnPause() {
         pauses++;
+        inBack = true;
         if (armed) {
             if (canDraw()) main.post(this::display);
             else lastError = "autorisation manquante";
@@ -340,6 +359,7 @@ public class BubblePlugin extends Plugin {
     @Override
     protected void handleOnResume() {
         lastResumeAt = System.currentTimeMillis();
+        inBack = false;
         main.post(this::remove);
     }
 
