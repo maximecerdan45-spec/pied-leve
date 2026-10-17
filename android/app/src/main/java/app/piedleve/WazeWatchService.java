@@ -165,6 +165,7 @@ public class WazeWatchService extends Service {
         }
         if (best != null) foreground = best;
         lastForeground = foreground;
+        BubblePlugin.onForeground(foreground);
         boolean arrived = WAZE.equals(foreground) && !WAZE.equals(prevForeground);
         prevForeground = foreground;
         if (!WAZE.equals(foreground)) return;
