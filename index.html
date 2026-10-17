@@ -758,10 +758,16 @@ function draw(g,adv,dtR){
     else if(e.type==='arrivee') pill(x,y,'Arrivée',T.ink,T.surface);
     else { sign(x+13,y,e.vt); pill(x+30,y,e.label,T.surface,T.ink); } }
   if(showLift){ const L=pointAt(P.pts,adv+g.liftAt), s=proj(L[0],L[1]); if(inV(s)){ ctx.font='700 14px "Barlow Semi Condensed", sans-serif'; const t='Lever le pied ici', w=ctx.measureText(t).width+14, x=clamp(s[0]-w-22,4,W-w-4); ctx.fillStyle=T.lift; rr(x,s[1]-12,w,24,6); ctx.fill(); ctx.fillStyle=T['sign-ink']; ctx.fillText(t,x+7,s[1]+1); } }
-  // voiture
+  // voiture (vue de dessus, l'avant vers le haut)
   ctx.save(); ctx.translate(ox,oy); ctx.rotate(car[2]-camH);
   ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.fillStyle=T.accent; ctx.globalAlpha=.16; ctx.fill(); ctx.globalAlpha=1;
-  ctx.beginPath(); ctx.moveTo(0,-15); ctx.lineTo(11,11); ctx.lineTo(0,5); ctx.lineTo(-11,11); ctx.closePath(); ctx.fillStyle=T.accent; ctx.fill(); ctx.lineWidth=2.5; ctx.strokeStyle=T.surface; ctx.stroke(); ctx.restore();
+  ctx.fillStyle='#1B1F22'; for(const [wx,wy] of [[-11,-12],[6,-12],[-11,4],[6,4]]){ rr(wx,wy,5,8,1.8); ctx.fill(); }
+  rr(-9,-17,18,34,6.5); ctx.fillStyle=T.accent; ctx.fill(); ctx.lineWidth=2.4; ctx.strokeStyle=T.surface; ctx.stroke();
+  ctx.fillStyle='#D5EAF3'; ctx.beginPath(); ctx.moveTo(-5.8,-7.5); ctx.quadraticCurveTo(0,-10,5.8,-7.5); ctx.lineTo(4.6,-2.4); ctx.quadraticCurveTo(0,-3.6,-4.6,-2.4); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,.18)'; rr(-4.6,-1.4,9.2,8.6,2); ctx.fill();
+  ctx.fillStyle='#D5EAF3'; ctx.globalAlpha=.85; ctx.beginPath(); ctx.moveTo(-4.6,8.4); ctx.quadraticCurveTo(0,9.4,4.6,8.4); ctx.lineTo(5.6,12.2); ctx.quadraticCurveTo(0,13.6,-5.6,12.2); ctx.closePath(); ctx.fill(); ctx.globalAlpha=1;
+  ctx.fillStyle='#FFE7A3'; for(const hx of [-5.4,5.4]){ ctx.beginPath(); ctx.arc(hx,-14.4,1.4,0,Math.PI*2); ctx.fill(); }
+  ctx.restore();
 }
 function hud(g){
   $('hSpd').textContent=Math.round(S.v*KMH);
@@ -774,12 +780,21 @@ let MAP=null, GL=false, carMk=null, liftMk=null, destMk=null, homeMk=null, lastA
 const evMk=new Map(), EMPTY={type:'FeatureCollection',features:[]};
 const llOf=(x,y)=>{ const r=toLL(x,y); return [r[1],r[0]]; };
 function el(cls,html){ const d=document.createElement('div'); d.className=cls; if(html!=null) d.innerHTML=html; return d; }
-function carEl(){ return el('mk-car','<svg viewBox="0 0 46 46" width="46" height="46"><circle cx="23" cy="23" r="21" fill="#1C5A72" opacity=".18"/><path d="M23 7l11 28-11-6-11 6z" fill="#1C5A72" stroke="#fff" stroke-width="3" stroke-linejoin="round"/></svg>'); }
+// Petite voiture vue de dessus, l'avant vers le haut
+function carEl(){ return el('mk-car','<svg viewBox="0 0 46 46" width="46" height="46"><circle cx="23" cy="23" r="21" fill="#1C5A72" opacity=".16"/>'
+  +'<g fill="#1B1F22"><rect x="12" y="11" width="5" height="8" rx="1.8"/><rect x="29" y="11" width="5" height="8" rx="1.8"/><rect x="12" y="27" width="5" height="8" rx="1.8"/><rect x="29" y="27" width="5" height="8" rx="1.8"/></g>'
+  +'<rect x="14" y="6" width="18" height="34" rx="6.5" fill="#1C5A72" stroke="#fff" stroke-width="2.4"/>'
+  +'<path d="M17.2 15.5Q23 13 28.8 15.5L27.6 20.6Q23 19.4 18.4 20.6Z" fill="#D5EAF3"/><rect x="18.4" y="21.6" width="9.2" height="8.6" rx="2" fill="#164B5F"/>'
+  +'<path d="M18.4 31.4Q23 32.4 27.6 31.4L28.6 35.2Q23 36.6 17.4 35.2Z" fill="#D5EAF3" opacity=".85"/>'
+  +'<circle cx="17.6" cy="8.6" r="1.4" fill="#FFE7A3"/><circle cx="28.4" cy="8.6" r="1.4" fill="#FFE7A3"/></svg>'); }
 function initMap(){
   if(!window.maplibregl) return;
   try{
     MAP=new maplibregl.Map({container:'map',style:'https://tiles.openfreemap.org/styles/liberty',center:[-1.5536,47.2184],zoom:11,attributionControl:{compact:true},dragRotate:false,pitchWithRotate:false,maxPitch:65});
     MAP.on('load',()=>{
+      // Paysage épuré : pas de bâtiments ni de relief, seulement les routes et les repères utiles
+      for(const l of MAP.getStyle().layers||[]){
+        if(l.type==='fill-extrusion'||l.type==='hillshade'||/building|housenum/i.test(l.id)) MAP.setLayoutProperty(l.id,'visibility','none'); }
       MAP.addSource('route',{type:'geojson',data:EMPTY});
       MAP.addLayer({id:'route-case',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#0D4A73','line-opacity':.35,'line-width':['interpolate',['linear'],['zoom'],10,6,17,20]}});
       MAP.addLayer({id:'route',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#2A8FD6','line-width':['interpolate',['linear'],['zoom'],10,3.5,17,13]}});
