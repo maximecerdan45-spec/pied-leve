@@ -35,7 +35,7 @@ function serve() {
       const f = path.join(DIR, decodeURIComponent(req.url.split('?')[0]).replace(/^\/$/, '/index.html'));
       fs.readFile(f, (e, b) => { if (e) { rsp.writeHead(404); return rsp.end(); }
         // Le code de l'appli est fermé sur lui-même : on expose son état au test, sans rien changer d'autre.
-        if (f.endsWith('.html')) b = b.toString().replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, 'window.__PL={get S(){return S},get camH(){return camH},pointAt,toXY,GLinfo:()=>!GL?\'pas de carte\':(MAP.getLayoutProperty(\'building-3d\',\'visibility\')===\'none\'?\'ok, bâtiments masqués\':\'bâtiments visibles\')+(carMk&&carMk._map?\', voiture 3D affichée\':\', voiture absente\')};})();</script></body>');
+        if (f.endsWith('.html')) b = b.toString().replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, 'window.__PL={get S(){return S},get camH(){return camH},pointAt,toXY,GLinfo:()=>!GL?\'pas de carte\':(MAP.getLayoutProperty(\'building-3d\',\'visibility\')===\'none\'?\'ok, bâtiments masqués\':\'bâtiments visibles\')+(carMk&&carMk.el&&carMk.el.isConnected&&carMk.el.style.visibility===\'visible\'?\', voiture 3D affichée\':\', voiture absente\'),get carEl(){return carMk&&carMk.el}};})();</script></body>');
         rsp.writeHead(200, { 'content-type': f.endsWith('.html') ? 'text/html' : f.endsWith('.js') ? 'text/javascript' : 'application/octet-stream' }); rsp.end(b); });
     }).listen(0, () => res(s));
   });
@@ -73,9 +73,10 @@ function serve() {
   // Enregistre, à chaque image, la position et la rotation affichées du véhicule.
   await page.evaluate(() => {
     window.__rec = [];
-    const loop = t => { const { S, pointAt, camH, toXY } = window.__PL;
+    const loop = t => { const { S, pointAt, camH, toXY, carEl } = window.__PL;
+      const m = carEl && /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(carEl.style.transform || ''); // position de la voiture à l'écran
       const tr = __at(850 + __V * (t - __t0) / 1000), [ex, ey] = S.ref ? toXY(__LAT0 + tr[1] * __mLat, __LON0 + tr[0] * __mLon) : [0, 0]; // vraie position
-      if (S.veh) __rec.push([t, S.veh.x, S.veh.y, S.veh.h, camH, Math.hypot(S.veh.x - ex, S.veh.y - ey)]);
+      if (S.veh) __rec.push([t, S.veh.x, S.veh.y, S.veh.h, camH, Math.hypot(S.veh.x - ex, S.veh.y - ey), m ? +m[1] : null, m ? +m[2] : null]);
       else if (S.dispXY && S.path) { // ancienne version : position affichée + cap du tronçon
         const off = (S.advOff || 0) * Math.max(0, 1 - (t - (S.advOffT || 0)) / 900);
         const adv = Math.max(0, Math.min(40, Math.max(0, S.v * (t - S.fixT) / 1000)) + off);
@@ -111,11 +112,14 @@ function serve() {
   console.log(`Vitesse affichée : de ${vLo.toFixed(0)} à ${vHi.toFixed(0)} km/h pour ${(V * 3.6).toFixed(0)} km/h réels`);
   console.log(`Plus forte variation de vitesse affichée : ${maxAcc.toFixed(1)} m/s²`);
   const gap = s.map(r => r[5]).filter(x => x != null), gapMed = pct(gap, 0.5), gapMax = Math.max(...gap);
+  // Avec la vraie carte : la voiture doit rester immobile à l'écran (la caméra la suit)
+  let scr = 0; for (let i = 1; i < s.length; i++) if (s[i][6] != null && s[i - 1][6] != null) scr = Math.max(scr, Math.hypot(s[i][6] - s[i - 1][6], s[i][7] - s[i - 1][7]));
+  if (ML) console.log(`Mouvement de la voiture à l'écran d'une image à l'autre : ${scr.toFixed(2)} px au plus`);
   console.log(`Écart avec la vraie position : ${gapMed.toFixed(1)} m en moyenne, ${gapMax.toFixed(1)} m au pire (GPS bruité de ±4 m)`);
   console.log(`Plus forte rotation en une image : véhicule ${maxTurn.toFixed(1)}°, caméra ${maxCam.toFixed(1)}°`);
-  const ok = maxStep < 1 && vLo > V * 3.6 * 0.75 && vHi < V * 3.6 * 1.25 && maxAcc < 4 && maxTurn < 2 && maxCam < 1 && gapMax < 20;
+  const ok = maxStep < 1 && vLo > V * 3.6 * 0.75 && vHi < V * 3.6 * 1.25 && maxAcc < 4 && maxTurn < 2 && maxCam < 1 && gapMax < 20 && (!ML || scr < 0.1);
   const bad = [[maxStep < 1, 'saut de position'], [vLo > V * 3.6 * 0.75 && vHi < V * 3.6 * 1.25, 'vitesse affichée'], [maxAcc < 4, 'variation de vitesse'],
-    [maxTurn < 2, 'rotation du véhicule'], [maxCam < 1, 'rotation de la caméra'], [gapMax < 20, 'écart avec la vraie position']].filter(c => !c[0]).map(c => c[1]);
+    [maxTurn < 2, 'rotation du véhicule'], [maxCam < 1, 'rotation de la caméra'], [gapMax < 20, 'écart avec la vraie position'], [!ML || scr < 0.1, 'voiture qui bouge à l\'écran']].filter(c => !c[0]).map(c => c[1]);
   console.log(ok ? 'RÉUSSI : le véhicule avance de façon régulière, sans tremblement' : `ÉCHEC : le véhicule tremble ou avance par à-coups (critère en échec : ${bad.join(', ')})`);
   process.exit(ok ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -612,7 +612,12 @@ function ecoStep(v0,v1,dt){
   $('hEco').textContent=`${nf(E.saved,2)} L`;
 }
 /* ===== Réception d'une position ===== */
-function onFix(p){ onFixCore(p); backgroundTick(); }
+// Trajet démarré tout seul : il s'arrête tout seul après 10 minutes à l'arrêt (batterie)
+function autoIdle(){ if(!S.auto||!S.running) return; const now=Date.now();
+  if((S.vS??S.v)>1.5){ S.idleSince=0; return; } if(!S.idleSince){ S.idleSince=now; return; }
+  if(now-S.idleSince>600000){ logLine('Arrêt automatique : 10 minutes à l’arrêt'); end(); } }
+function onFix(p){ setTimeout(autoIdle,0); const F=S.fl, t=performance.now(); if(F){ if(F.lastFix) F.fixGap+=t-F.lastFix; F.lastFix=t; F.fixes++; const sp=p&&p.coords&&p.coords.speed; if(sp!=null&&!isNaN(sp)) F.speedGps++; }
+  onFixCore(p); backgroundTick(); }
 function onFixCore(p){
   const c=p.coords, now=performance.now();
   if(!S.ref) setRef(c.latitude,c.longitude);
@@ -750,20 +755,24 @@ const SETUP=[
   {k:'notifications',t:'Notifications',d:'Android exige la notification « Pied Levé en route » pour garder le GPS actif quand Waze est devant.',b:'Autoriser'},
   {k:'overlay',t:'Bulle par-dessus les autres applis',d:'Pour voir les conseils dans une bulle quand Waze est devant. Activez « Superposition sur d’autres applis ».',b:'Ouvrir'},
   {k:'battery',t:'Batterie sans restriction',d:'Pour qu’Android n’arrête pas Pied Levé pendant le trajet.',b:'Ouvrir'},
+  {k:'autostart',t:'Démarrer tout seul avec Waze',d:'Facultatif. Le trajet se lance dès que vous ouvrez Waze, sans ouvrir Pied Levé. Autorisez « Accès aux données d’utilisation » pour Pied Levé, puis revenez et touchez « Activer ».',b:'Activer',optional:true},
   {k:'xiaomi',t:'Fenêtres pop-up (Xiaomi)',d:'Dans « Autres autorisations », autorisez « Afficher des fenêtres pop-up lors de l’exécution en arrière-plan », puis revenez et touchez « C’est fait ».',b:'Ouvrir',manual:true}];
 const SET={st:null,first:{},timer:null};
 const lsGet=k=>{ try{ return localStorage.getItem(k); }catch(e){ return null; } }, lsSet=(k,v)=>{ try{ localStorage.setItem(k,v); }catch(e){} };
 async function setupCheck(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.checkSetup) return null;
   try{ const r=await B.checkSetup(); r.xiaomiNeeded=/xiaomi|redmi|poco/.test(r.maker||''); r.xiaomi=lsGet('pl-xiaomi-ok')==='1'; SET.st=r; return r; }catch(e){ return null; } }
-function setupItems(){ const r=SET.st; return r?SETUP.filter(i=>i.k!=='xiaomi'||r.xiaomiNeeded):[]; }
-function setupMissing(){ const r=SET.st; return r?setupItems().filter(i=>!r[i.k]).length:0; }
+function setupItems(){ const r=SET.st; return r?SETUP.filter(i=>(i.k!=='xiaomi'||r.xiaomiNeeded)&&(i.k!=='autostart'||r.waze)):[]; }
+function setupMissing(){ const r=SET.st; return r?setupItems().filter(i=>!i.optional&&!r[i.k]).length:0; }
 function setupRender(){
   const r=SET.st; if(!r) return; const list=$('setupList'); list.textContent='';
   setupItems().forEach((it,n)=>{ const ok=!!r[it.k], row=document.createElement('div'); row.className='srow'+(ok?' ok':'');
     row.innerHTML=`<div class="st">${ok?'✓':n+1}</div><div class="tx"><b></b><small></small></div><button class="tbtn" type="button"></button>`;
-    row.querySelector('b').textContent=it.t; row.querySelector('small').textContent=ok?'C’est fait.':it.d;
+    row.querySelector('b').textContent=it.t; row.querySelector('small').textContent=ok?(it.k==='autostart'?'Activé : le trajet démarre quand Waze s’ouvre.':'C’est fait.'):it.d;
     const bt=row.querySelector('button'); bt.textContent=it.manual&&SET.first[it.k]===false?'C’est fait':it.b;
+    if(it.k==='autostart'){ if(ok){ bt.textContent='Couper'; bt.style.display='block'; } else if(!r.usage) bt.textContent='Ouvrir'; }
     bt.onclick=()=>{ if(it.manual&&SET.first[it.k]===false){ lsSet('pl-xiaomi-ok','1'); setupCheck().then(setupRender); return; }
+      if(it.k==='autostart'){ const B=PLUG.Bubble; if(ok) B.setAutoStart({on:false}).catch(()=>{}).finally(()=>setupCheck().then(setupRender));
+        else if(!r.usage) B.openSetting({what:'usage'}).catch(()=>{}); else B.setAutoStart({on:true}).catch(()=>{}).finally(()=>setupCheck().then(setupRender)); return; }
       PLUG.Bubble.openSetting({what:it.k,first:SET.first[it.k]!==false}).catch(()=>{}); SET.first[it.k]=false; setupRender(); };
     list.append(row); });
   const miss=setupMissing(); $('bSetupDone').textContent=miss?'Continuer sans tout autoriser':'C’est prêt';
@@ -777,6 +786,16 @@ $('bSetupDone').onclick=setupClose; $('bSetup').onclick=setupOpen;
 // Au lancement : l'écran s'ouvre tout seul la première fois, ou s'il manque la position
 setupCheck().then(r=>{ if(!r) return; setupRender(); if(lsGet('pl-setup-seen')!=='1'||!r.location) setupOpen(); });
 function bubbleBoxRefresh(){ setupCheck().then(setupRender); }
+/* Démarrage automatique : Android a ouvert Pied Levé parce que Waze vient de s'ouvrir.
+   On lance le trajet (le GPS doit démarrer appli devant), puis on remet Pied Levé derrière Waze. */
+function autoStart(){
+  if(!NATIVE||S.running) return;
+  $('ovSetup').hidden=true; $('ovEnd').hidden=true;
+  start('real'); S.auto=true; logLine('Démarrage automatique : Waze vient de s’ouvrir');
+  setTimeout(()=>{ try{ PLUG.Bubble.toBack().catch(()=>{}); }catch(e){} },1500);
+}
+function autoCheck(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.consumeAutostart) return; B.consumeAutostart().then(r=>{ if(r&&r.pending) autoStart(); }).catch(()=>{}); }
+if(NATIVE&&PLUG.Bubble){ try{ PLUG.Bubble.addListener('autostart',autoCheck); }catch(e){} autoCheck(); }
 // Quelle version tourne ? (affiché sur l'accueil et dans le journal, pour ne pas confondre appli web et appli Android)
 let APPVER='Version web';
 (async()=>{ if(NATIVE){ APPVER='Appli Android'; try{ const r=await fetch('./app-version.json',{cache:'no-store'}); const c=r.ok?(await r.json()).code:0; if(c) APPVER+=' · version '+c; }catch(e){} } $('appVer').textContent=APPVER; })();
@@ -841,16 +860,17 @@ function draw(g,adv,dtR){
     for(const q of S.route.pts){ if(Math.abs(q[0]-cx)<Rv&&Math.abs(q[1]-cy)<Rv){ on?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]); on=true; } else on=false; } ctx.stroke(); ctx.globalAlpha=1; }
   const path=(a,b)=>{ const A=pointAt(P.pts,a); ctx.beginPath(); ctx.moveTo(A[0],A[1]); for(const q of P.pts){ if(q[2]>a&&q[2]<b) ctx.lineTo(q[0],q[1]); } const B=pointAt(P.pts,b); ctx.lineTo(B[0],B[1]); };
   path(0,P.len); ctx.strokeStyle=T['road-edge']; ctx.lineWidth=19/ppm; ctx.stroke(); ctx.strokeStyle=T.road; ctx.lineWidth=14/ppm; ctx.stroke();
-  if(adv>1){ path(0,adv); ctx.strokeStyle=T.travel; ctx.lineWidth=7/ppm; ctx.stroke(); }
+  const sD=V&&V.path===P?Math.max(0,V.s):adv; // départ des tracés : sous la voiture affichée
+  if(sD>1){ path(0,sD); ctx.strokeStyle=T.travel; ctx.lineWidth=7/ppm; ctx.stroke(); }
   // zones colorées
-  const zones=[]; const v=S.v;
+  const zones=[]; const v=V?V.v:S.v;
   for(const e of S.ev){ const dn=e.d-adv; if(dn<-3) continue; const stop=e.vt===0, vt=(stop?12:e.vt)/KMH, dEff=stop?dn-15:dn;
     if(stop) zones.push([adv+Math.max(0,dn-20),adv+dn,2]);
     if(v>vt+0.4){ const la=dEff-liftBefore(e,v,vt); zones.push([adv+Math.max(0,la),adv+Math.max(0,stop?dn-20:dn),1]); } }
   const colAt=s=>{ let c=0; for(const z of zones){ if(s>=z[0]&&s<=z[1]) c=Math.max(c,z[2]); } return c; };
-  const cols=[T.go,T.lift,T.brake]; let st=adv, cur=colAt(adv+0.1);
+  const cols=[T.go,T.lift,T.brake]; let st=sD, cur=colAt(sD+0.1);
   const flush=(a,b,c)=>{ if(b-a<0.5) return; path(a,b); ctx.strokeStyle=cols[c]; ctx.lineWidth=8/ppm; ctx.stroke(); };
-  for(let s=adv+3;s<=P.len;s+=3){ const c=colAt(s); if(c!==cur){ flush(st,s,cur); st=s; cur=c; } } flush(st,P.len,cur);
+  for(let s=sD+3;s<=P.len;s+=3){ const c=colAt(s); if(c!==cur){ flush(st,s,cur); st=s; cur=c; } } flush(st,P.len,cur);
   // repère « lever ici »
   const showLift=(g.lvl==='prep'||g.lvl==='go')&&g.e&&g.liftAt>3&&g.liftAt<P.len;
   if(showLift){ const L=pointAt(P.pts,adv+g.liftAt), w=13/ppm; ctx.strokeStyle=T.lift; ctx.lineWidth=4/ppm; ctx.beginPath(); ctx.moveTo(L[0]-Math.cos(L[2])*w,L[1]+Math.sin(L[2])*w); ctx.lineTo(L[0]+Math.cos(L[2])*w,L[1]-Math.sin(L[2])*w); ctx.stroke(); }
@@ -954,7 +974,10 @@ function glSetRoute(P,fit){
 function glDrive(){
   if(!GL) return; if(homeMk){ homeMk.remove(); homeMk=null; }
   glInteractive(false); MAP.setPadding({top:Math.round(innerHeight*0.40),bottom:0,left:0,right:0});
-  if(!carMk) carMk=new maplibregl.Marker({element:car3dEl(),rotationAlignment:'viewport',pitchAlignment:'viewport'});
+  // La voiture n'est pas un repère de carte (arrondi au pixel près → vibration) : c'est un calque posé
+  // au-dessus de la carte, à l'endroit exact où la caméra la centre.
+  if(!carMk){ const w=car3dEl(); w.style.cssText='position:absolute;left:0;top:0;z-index:2;will-change:transform;visibility:hidden'; MAP.getContainer().append(w);
+    carMk={el:w,remove(){ w.remove(); }}; }
   zoomS=17;
 }
 function signEl(e){
@@ -970,18 +993,19 @@ function drawGL(g,adv,dtR,ts){
   zoomS+=((17.7-1.5*clamp(V.v/25,0,1))-zoomS)*(1-Math.exp(-dtR/1.5));
   const ll=llOf(car[0],car[1]);
   MAP.jumpTo({center:ll,bearing:(camH||0)*180/Math.PI,pitch:55,zoom:zoomS});
-  carMk.setLngLat(ll); if(!carMk._map) carMk.addTo(MAP);
-  const rel=angSigned(car[2],camH??car[2])*180/Math.PI; carMk.getElement()._car.style.transform=`rotateX(${MAP.getPitch().toFixed(1)}deg) rotateZ(${rel.toFixed(2)}deg) scale3d(1.35,1.35,1.35)`;
+  const sp=MAP.project(ll); carMk.el.style.visibility='visible'; carMk.el.style.transform=`translate(${(sp.x-48).toFixed(2)}px,${(sp.y-48).toFixed(2)}px)`;
+  const rel=angSigned(car[2],camH??car[2])*180/Math.PI; carMk.el._car.style.transform=`rotateX(${MAP.getPitch().toFixed(1)}deg) rotateZ(${rel.toFixed(2)}deg) scale3d(1.35,1.35,1.35)`;
   if(ts-lastAhead<250) return; lastAhead=ts;
   const P=S.path; if(!P){ MAP.getSource('ahead').setData(EMPTY); clearDriveMarkers(); return; }
   // tracé devant, coloré par zone
-  const zones=[]; const v=S.v;
+  const zones=[]; const v=V.v; const sD=V.path===P?V.s:adv;
   for(const e of S.ev){ const dn=e.d-adv; if(dn<-3) continue; const stop=e.vt===0, vt=(stop?12:e.vt)/KMH, dEff=stop?dn-15:dn;
     if(stop) zones.push([adv+Math.max(0,dn-20),adv+dn,2]);
     if(v>vt+0.4){ const la=dEff-liftBefore(e,v,vt); zones.push([adv+Math.max(0,la),adv+Math.max(0,stop?dn-20:dn),1]); } }
   const colAt=s=>{ let c=0; for(const z of zones){ if(s>=z[0]&&s<=z[1]) c=Math.max(c,z[2]); } return c; };
-  const feats=[]; let cur=colAt(adv+0.1), line=[llOf(car[0],car[1])];
-  for(let s=adv+5;s<=P.len;s+=5){ const q=pointAt(P.pts,s), c=colAt(s), pt=llOf(q[0],q[1]); line.push(pt);
+  // tracé dessiné depuis 15 m derrière la voiture affichée : son début reste caché sous elle
+  const s0=Math.max(0,sD-15), feats=[]; let cur=colAt(s0+0.1), line=[];
+  for(let s=s0;s<=P.len;s+=5){ const q=pointAt(P.pts,s), c=colAt(s), pt=llOf(q[0],q[1]); line.push(pt);
     if(c!==cur){ feats.push({type:'Feature',properties:{c:cur},geometry:{type:'LineString',coordinates:line}}); line=[pt]; cur=c; } }
   const qe=pointAt(P.pts,P.len); line.push(llOf(qe[0],qe[1]));
   if(line.length>1) feats.push({type:'Feature',properties:{c:cur},geometry:{type:'LineString',coordinates:line}});
@@ -1050,12 +1074,12 @@ function vehPose(adv,dt){
   if(!V||!V.path){ const c=ptAt(P.pts,adv); V=S.veh={path:P,s:adv,v:vRef,lx:V?V.x-c[0]:0,ly:V?V.y-c[1]:0,x:c[0],y:c[1],h:headAt(P.pts,adv)}; if(Math.hypot(V.lx,V.ly)>VEH_JUMP){ V.lx=V.ly=0; } }
   if(V.path!==P){ // nouveau trajet calculé : on reprend là où le véhicule est affiché
     const pr=projOn(P.pts,V.x,V.y);
-    if(!pr||pr.d>VEH_JUMP||Math.abs(pr.s-adv)>VEH_JUMP){ V.s=adv; V.lx=V.ly=0; V.v=vRef; }
+    if(!pr||pr.d>VEH_JUMP||Math.abs(pr.s-adv)>VEH_JUMP){ V.s=adv; V.lx=V.ly=0; V.v=vRef; if(S.fl) S.fl.snaps++; }
     else { V.s=pr.s; const c=ptAt(P.pts,pr.s); V.lx=V.x-c[0]; V.ly=V.y-c[1]; }
     V.path=P; }
   // vitesse : régulière, ajustée doucement pour rattraper la position GPS
   const err=adv-V.s;
-  if(Math.abs(err)>VEH_JUMP){ V.s=adv; V.v=vRef; }
+  if(Math.abs(err)>VEH_JUMP){ V.s=adv; V.v=vRef; if(S.fl) S.fl.snaps++; }
   const lim=0.25*vRef+0.4, want=Math.max(0,vRef+clamp(err/VEH_CATCH,-lim,lim));
   V.v+=(want-V.v)*(1-Math.exp(-dt/VEH_VTAU));
   V.s+=V.v*dt;
@@ -1070,12 +1094,22 @@ function camStep(dtR){ const th=camTarget(); if(th==null) return; if(camH==null)
 
 /* ===== Boucle ===== */
 let lastTs=performance.now();
+/* Mesures de fluidité prises sur le téléphone (résumé dans le journal en fin de trajet) */
+function flNew(){ return {frames:0,time:0,drops:0,jerks:0,worst:0,snaps:0,fixes:0,fixGap:0,speedGps:0,lastFix:0,px:null,py:null}; }
+function flFrame(dt){ const F=S.fl, V=S.veh; if(!F||!V||!S.running||inBackground()) return;
+  F.frames++; F.time+=dt; if(dt>0.05) F.drops++;
+  if(F.px!=null&&dt>0){ const d=Math.hypot(V.x-F.px,V.y-F.py), e=Math.abs(d-V.v*dt); if(e>F.worst) F.worst=e; if(e>0.4) F.jerks++; }
+  F.px=V.x; F.py=V.y; }
+function flReport(){ const F=S.fl; if(!F) return; const fps=F.time>0?F.frames/F.time:0;
+  logLine(`Fluidité : ${Math.round(fps)} images/s, ${F.drops} images sautées, ${F.jerks} saccades du véhicule (pire écart ${nf(F.worst,2)} m), ${F.snaps} recalages forcés`);
+  logLine(`GPS : ${F.fixes} positions${F.fixes>1?`, une toutes les ${nf(F.fixGap/(F.fixes-1)/1000,1)} s`:''}, vitesse fournie par le GPS ${F.fixes?Math.round(F.speedGps/F.fixes*100):0} %`); }
+
 function frame(ts){
   lastFrameAt=performance.now();
   const dtR=Math.min(0.1,Math.max(0,(ts-lastTs)/1000)); lastTs=ts;
   let adv=0;
   if(S.mode==='sim') adv=SIM.s; else if(S.path) adv=clamp(S.v*(ts-S.fixT)/1000,0,40);
-  if(S.running) vehPose(adv,dtR||0.016);
+  if(S.running){ vehPose(adv,dtR||0.016); flFrame(dtR); }
   const v=S.mode==='sim'?SIM.v:(S.vS??S.v); if(S.mode==='sim') S.v=v;
   const g=S.path?guide(v,adv):{lvl:'go'};
   if(S.running){ if(S.mode==='sim') simTick(dtR*SIM.mult,g); updateCue(g); }
@@ -1093,7 +1127,7 @@ async function keepAwake(){ try{ if(NATIVE&&PLUG.KeepAwake){ await PLUG.KeepAwak
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.running) keepAwake(); else if(S.running) logLine('Page passée en arrière-plan'); });
 function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative('Pied Levé est prêt.'); return; } try{ const u=new SpeechSynthesisUtterance('Pied Levé est prêt.'); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
 function reset(){
-  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},vS:null,veh:null,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
+  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},vS:null,veh:null,auto:false,idleSince:0,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
   $('hEco').textContent='0,00 L'; $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
   camH=null; Object.assign(SIM,{v:0,s:0,acc:0,wait:0,done:false});
 }
@@ -1121,7 +1155,7 @@ function start(mode){
   logLine(`Démarrage (${mode==='sim'?'simulation':'route réelle'})`);
   if(PLAN) logLine(`Destination : ${PLAN.dest.name} (${nf(PLAN.distance/1000,1)} km, ${Math.round(PLAN.duration/60)} min estimées sans trafic)`);
   setMap('–'); setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert');
-  nativeReport(); logLine(APPVER); bubbleArm(true);
+  nativeReport(); logLine(APPVER); bubbleArm(true); S.fl=flNew();
   if(mode==='real'){ if(!startNativeGps()) S.watch=navigator.geolocation.watchPosition(onFix,onGeoErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
   else {
     const go=(lat,lon,src)=>{ SIM.lat=lat; SIM.lon=lon; logLine(`Simulation depuis ${src}`); simEmit(); };
@@ -1129,7 +1163,7 @@ function start(mode){
   }
 }
 function end(){
-  if(!S.running) return; S.running=false;
+  if(!S.running) return; S.running=false; flReport();
   if(S.watch!=null){ navigator.geolocation.clearWatch(S.watch); S.watch=null; }
   stopNativeGps(); bubbleHide(); bubbleReport(); bubbleArm(false);
   try{ wake&&wake.release(); }catch(e){} try{ if(NATIVE&&PLUG.KeepAwake) PLUG.KeepAwake.allowSleep(); }catch(e){}
