@@ -799,9 +799,11 @@ function bubbleBoxRefresh(){ setupCheck().then(setupRender); }
 function autoStart(){
   if(!NATIVE||S.running) return;
   $('ovSetup').hidden=true; $('ovEnd').hidden=true;
-  const t0=performance.now(); start('real'); S.auto=true; logLine('Démarrage automatique : Waze vient de s’ouvrir');
+  // démarrage discret : pas de phrase « Pied Levé est prêt », compte rendu repoussé (le retour vers Waze passe d'abord)
+  const t0=performance.now(); start('real',{quiet:true}); S.auto=true; logLine('Démarrage automatique : Waze vient de s’ouvrir');
   // On rend la main à Waze dès que le GPS est lancé (il doit démarrer appli devant), au plus tard après 1,5 s
-  const back=()=>{ clearInterval(iv); try{ PLUG.Bubble.toBack().catch(()=>{}); }catch(e){} logLine(`Retour vers Waze après ${Math.round(performance.now()-t0)} ms`); };
+  const back=()=>{ clearInterval(iv); logLine(`Retour vers Waze demandé après ${Math.round(performance.now()-t0)} ms`);
+    try{ PLUG.Bubble.toBack({t:Date.now()}).then(r=>{ if(r&&r.queued!=null) logLine(`Retour vers Waze effectué : demande reçue par Android après ${r.queued} ms d’attente`); }).catch(()=>{}); }catch(e){} };
   const iv=setInterval(()=>{ if(bgWatch!=null||performance.now()-t0>1500) back(); },50);
 }
 function autoCheck(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.consumeAutostart) return; B.consumeAutostart().then(r=>{ if(r&&r.pending) autoStart(); }).catch(()=>{}); }
@@ -1162,15 +1164,15 @@ async function watchReport(){ const B=PLUG.Bubble; if(!NATIVE||!B||!B.watchStatu
   const t=`Veille Waze : ${w.on?'activée':'coupée'}, ${w.running?`tourne (dernière vérification il y a ${w.ago} s)`:'ne tourne pas'}, appli vue devant : ${w.foreground||'aucune'}, Waze vu ${w.wazeAgo>=0?`il y a ${w.wazeAgo} s`:'jamais'}, démarrages lancés : ${w.launches}${w.lastError?`, erreur : ${w.lastError}`:''}`;
   logLine(t); try{ const ta=$('eLog'); if(ta&&!$('ovEnd').hidden) ta.value+='\n'+S.log.lines[S.log.lines.length-1]; }catch(e){} }catch(e){} }
 function stopNativeGps(){ const B=PLUG.BackgroundGeolocation; if(bgWatch!=null&&B){ B.removeWatcher({id:bgWatch}).catch(()=>{}); } bgWatch=null; }
-function start(mode){
+function start(mode,opt){ opt=opt||{};
   if(!window.isSecureContext){ $('startMsg').textContent='Cette page doit être ouverte en https pour accéder au GPS.'; return; }
   if(!navigator.geolocation){ $('startMsg').textContent='Ce navigateur ne donne pas accès à la position.'; return; }
-  reset(); S.mode=mode; S.running=true; unlockAudio(); keepAwake();
+  reset(); S.mode=mode; S.running=true; if(!opt.quiet) unlockAudio(); keepAwake();
   $('ovStart').hidden=true; $('ovEnd').hidden=true; $('drive').hidden=false; $('cMode').hidden=mode!=='sim'; glDrive();
   logLine(`Démarrage (${mode==='sim'?'simulation':'route réelle'})`);
   if(PLAN) logLine(`Destination : ${PLAN.dest.name} (${nf(PLAN.distance/1000,1)} km, ${Math.round(PLAN.duration/60)} min estimées sans trafic)`);
   setMap('–'); setCue('wait','wait','Recherche du GPS…','Gardez le téléphone à découvert');
-  nativeReport(); logLine(APPVER); bubbleArm(true); S.fl=flNew();
+  if(opt.quiet) setTimeout(nativeReport,4000); else nativeReport(); logLine(APPVER); bubbleArm(true); S.fl=flNew();
   if(mode==='real'){ if(!startNativeGps()) S.watch=navigator.geolocation.watchPosition(onFix,onGeoErr,{enableHighAccuracy:true,maximumAge:0,timeout:20000}); }
   else {
     const go=(lat,lon,src)=>{ SIM.lat=lat; SIM.lon=lon; logLine(`Simulation depuis ${src}`); simEmit(); };
