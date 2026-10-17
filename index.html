@@ -182,28 +182,40 @@ const toLL=(x,y)=>[S.ref.lat+y/S.ref.ky,S.ref.lon+x/S.ref.kx];
 
 /* ===== Données OpenStreetMap ===== */
 const HW='^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link)$';
-const EPS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+const EPS=['https://overpass.private.coffee/api/interpreter','https://overpass-api.de/api/interpreter','https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
 function parseMax(t){ const m=t.maxspeed; if(!m) return null; if(/^\d+$/.test(m)) return +m;
   const map={'FR:urban':50,'FR:rural':80,'FR:motorway':130,'FR:zone30':30,'FR:zone:30':30,'FR:walk':20,'walk':20,'FR:living_street':20};
   if(map[m]) return map[m]; const n=parseInt(m,10); return isNaN(n)?null:n; }
 function setMap(st,cls){ S.mapState=st; const c=$('cMap'); c.textContent='Carte : '+st; c.className='chip '+(cls||''); }
 async function fetchMap(x,y){
-  if(S.fetching) return; S.fetching=true; setMap('chargement…','warn');
-  const [lat,lon]=toLL(x,y), r=2000;
-  const q=`[out:json][timeout:25];(way(around:${r},${lat.toFixed(6)},${lon.toFixed(6)})[highway~"${HW}"];node(around:${r},${lat.toFixed(6)},${lon.toFixed(6)})[highway~"^(stop|give_way|traffic_signals|mini_roundabout)$"];node(around:${r},${lat.toFixed(6)},${lon.toFixed(6)})[traffic_calming];);out geom;`;
-  for(const ep of EPS){
-    try{
-      const ctl=new AbortController(), to=setTimeout(()=>ctl.abort(),30000);
-      const res=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q),signal:ctl.signal});
-      clearTimeout(to);
-      if(!res.ok) throw new Error('HTTP '+res.status);
-      const js=await res.json();
-      ingest(js); S.fetchXY=[x,y]; S.fetching=false; S.fetchFail=0; setMap(`OK (${S.ways.size} rues)`,'ok');
-      logLine(`Carte chargée : ${S.ways.size} tronçons`);
-      return;
-    }catch(e){ logLine(`Carte : échec ${ep.split('/')[2]} (${e.message||e})`); }
+  if(S.fetching) return; S.fetching=true; S.fetchStart=performance.now(); setMap('chargement…','warn');
+  const [lat,lon]=toLL(x,y), r=1200, L=`${lat.toFixed(6)},${lon.toFixed(6)}`;
+  const q=`[out:json][timeout:20];(way(around:${r},${L})[highway~"${HW}"];node(around:${r},${L})[highway~"^(stop|give_way|traffic_signals|mini_roundabout)$"];node(around:${r},${L})[traffic_calming];);out geom;`;
+  const ctls=[];
+  const one=(ep,delay)=>new Promise((res,rej)=>{
+    const ctl=new AbortController(); ctls.push(ctl);
+    const go=async()=>{
+      const to=setTimeout(()=>ctl.abort(),25000);
+      try{
+        const r2=await fetch(ep+'?data='+encodeURIComponent(q),{signal:ctl.signal});
+        if(!r2.ok) throw new Error('HTTP '+r2.status);
+        const js=await r2.json();
+        if(!js.elements) throw new Error('réponse vide');
+        clearTimeout(to); res({js,ep});
+      }catch(e){ clearTimeout(to); if(!ctl.signal.aborted||!S.fetchDone) logLine(`Carte : échec ${ep.split('/')[2]} (${e.name==='AbortError'?'délai dépassé':(e.message||e)})`); rej(e); }
+    };
+    const t=setTimeout(go,delay); ctl.signal.addEventListener('abort',()=>clearTimeout(t));
+  });
+  S.fetchDone=false;
+  try{
+    const {js,ep}=await Promise.any([one(EPS[0],0),one(EPS[1],0),one(EPS[2],5000)]);
+    S.fetchDone=true; ctls.forEach(c=>{ try{c.abort();}catch(e){} });
+    ingest(js); S.fetchXY=[x,y]; S.fetching=false; S.fetchFail=0;
+    const sec=Math.round((performance.now()-S.fetchStart)/1000);
+    setMap(`OK (${S.ways.size} rues)`,'ok'); logLine(`Carte chargée en ${sec} s via ${ep.split('/')[2]} : ${S.ways.size} tronçons`);
+  }catch(e){
+    S.fetching=false; S.fetchFail=performance.now(); setMap('serveurs indisponibles, nouvel essai','err');
   }
-  S.fetching=false; S.fetchFail=performance.now(); setMap('erreur, nouvel essai','err');
 }
 function ingest(js){
   for(const el of js.elements||[]){
@@ -369,9 +381,9 @@ function onFix(p){
   if(hd==null&&S.hd!=null&&v<2) hd=null;
   S.hd=hd??S.hd; S.v=v; S.xy=xy; S.vPrev=v; S.tPrev=now; S.fixT=now;
   // carte
-  const needFetch=!S.fetchXY||Math.hypot(xy[0]-S.fetchXY[0],xy[1]-S.fetchXY[1])>1000;
-  if(needFetch&&!S.fetching&&(!S.fetchFail||now-S.fetchFail>15000)){
-    let fx=xy[0],fy=xy[1]; if(v>5&&S.hd!=null){ fx+=Math.sin(S.hd)*700; fy+=Math.cos(S.hd)*700; }
+  const needFetch=!S.fetchXY||Math.hypot(xy[0]-S.fetchXY[0],xy[1]-S.fetchXY[1])>600;
+  if(needFetch&&!S.fetching&&(!S.fetchFail||now-S.fetchFail>8000)){
+    let fx=xy[0],fy=xy[1]; if(v>5&&S.hd!=null){ fx+=Math.sin(S.hd)*500; fy+=Math.cos(S.hd)*500; }
     if(!S.fetchXY){ fx=xy[0]; fy=xy[1]; }
     fetchMap(fx,fy);
   }
@@ -550,6 +562,7 @@ function frame(ts){
   const v=S.mode==='sim'?SIM.v:S.v; if(S.mode==='sim') S.v=v;
   const g=S.path?guide(v,adv):{lvl:'go'};
   if(S.running){ if(S.mode==='sim') simTick(dtR*SIM.mult,g); updateCue(g); }
+  if(S.fetching&&S.fetchStart){ const c=$('cMap'), t=`Carte : chargement… ${Math.round((ts-S.fetchStart)/1000)} s`; if(c.textContent!==t) c.textContent=t; }
   draw(g,adv,dtR||0.016); hud(g);
   requestAnimationFrame(frame);
 }
