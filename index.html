@@ -82,7 +82,7 @@
 :root[data-skin="moderne"] .cue.prep.near svg{color:var(--on-cue)}
 :root[data-skin="moderne"] :is(.btn.go,.toast){background:var(--go);color:#0E1418}
 :root[data-skin="moderne"] .btn{border-radius:18px;font-weight:800}
-:root[data-skin="moderne"] .btn:not(.go):not(.ghost){background:var(--ink);color:#0E1418}
+:root[data-skin="moderne"] .btn:not(.go):not(.ghost){background:var(--ink);color:var(--surface)}
 :root[data-skin="moderne"] .round.stop{background:var(--brake);color:#0E1418}
 :root[data-skin="moderne"] .search .round{background:var(--go);color:#0E1418}
 :root[data-skin="moderne"] .kitty{color:var(--go)}
@@ -339,6 +339,8 @@ details.more p{font-size:14px}
 .badge.off .bi{background:var(--line);color:var(--muted)}
 .bgrid{display:flex;flex-direction:column;gap:8px}
 /* zoom pendant la conduite, bouton stations-service */
+.recenter{position:fixed;left:50%;transform:translateX(-50%);top:calc(var(--sa-top) + 132px);z-index:4;display:flex;align-items:center;gap:8px;height:48px;padding:0 20px;border:0;border-radius:24px;background:var(--ink);color:var(--surface);font:700 17px var(--f-display);box-shadow:var(--shadow);cursor:pointer}
+.recenter svg{width:20px;height:20px}
 .zoomb{position:fixed;right:max(16px,var(--sa-right));top:42%;display:flex;flex-direction:column;gap:8px}
 .zoomb .round,.fuelb{width:52px;height:52px;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
 .fuelb{position:fixed;right:max(16px,var(--sa-right));bottom:calc(var(--sa-bottom) + 190px)}
@@ -448,6 +450,7 @@ details.more p{font-size:14px}
     <div class="eta" id="etaBox" hidden><b id="hEtaT">Pied Levé</b><span id="hEtaI">sans destination</span></div>
     <span id="hEco" hidden>0,00 L</span>
     <div class="kitty" id="kitty" role="status" aria-label="Cagnotte du trajet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 10.5c0-3.6-3.1-6-7-6S5 6.9 5 10.5c0 1.9.9 3.4 2.3 4.5L7 18.5h3l.5-1.6c.5.1 1 .1 1.5.1s1 0 1.5-.1l.5 1.6h3l-.3-3.5c.9-.7 1.6-1.6 1.9-2.6H21v-2.5h-2.1"/><path d="M10 4.8c.4-1.2 1.6-2 3-2"/><circle cx="15.5" cy="9.5" r=".6" fill="currentColor"/></svg><b id="kittyAmt">0,00 €</b></div>
+    <button class="recenter" id="bRecenter" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 18-7-4-7 4z"/></svg>Recentrer</button>
     <div class="zoomb"><button class="round" id="bZoomIn" type="button" aria-label="Zoomer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button class="round" id="bZoomOut" type="button" aria-label="Dézoomer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg></button></div>
     <button class="round fuelb" id="bFuel" type="button" aria-label="Stations-service proches"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 012-2h7a2 2 0 012 2v16M3 21h13M7 7h5v4H7z"/><path d="M15 9h2a2 2 0 012 2v6a1.5 1.5 0 003 0V9l-3-3"/></svg></button>
     <button class="round mute" id="bMute" type="button" aria-pressed="false" aria-label="Couper le son"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/><path class="off" d="M16 9l5 6M21 9l-5 6"/></svg></button>
@@ -745,6 +748,12 @@ function initRoute(P){
   S.route={pts,cum,len:cum[cum.length-1],grid,dest:toXY(P.dest.lat,P.dest.lon),duration:P.duration,s:0};
   glSetRoute(P);
 }
+// cap de l'itinéraire au point le plus proche (pour partir dans le bon sens quand la voiture est encore à l'arrêt)
+function routeBearing(x,y){ const R=S.route, rn=routeNear(x,y); if(!R||rn.d>45) return null;
+  let k=0; while(k<R.cum.length-2&&R.cum[k+1]<rn.s) k++;
+  // segment d'au moins 8 m pour un cap fiable
+  let j=k+1; while(j<R.pts.length-1&&R.cum[j]-R.cum[k]<8) j++;
+  const a=R.pts[k], b=R.pts[j]; return Math.atan2(b[0]-a[0],b[1]-a[1]); }
 function routeNear(x,y){
   const R=S.route; let best={d:Infinity,s:0}; if(!R) return best;
   const cx=Math.floor(x/CELL),cy=Math.floor(y/CELL), seen=new Set();
@@ -985,7 +994,8 @@ function onFixCore(p){
   S.pend=S.pend.filter(q=>{ q.vMin=Math.min(q.vMin??q.v,v); if(now-q.t<(S.mode==='sim'?5000/(SIM.mult||1):5000)) return true; const ok=!q.hard&&(q.v-q.vMin)>0.8; if(ok){ S.log.fol++; cheer(q); } logLine(`  → conseil ${ok?'suivi':'non suivi'} (${Math.round(q.v*KMH)} → ${Math.round(q.vMin*KMH)} km/h en 5 s)`); return false; });
   // recalage + trajet
   if(!S.ways.size){ S.match=null; S.path=null; return; }
-  let m=match(xy[0],xy[1],hd??S.hd);
+  let hdUse=hd??S.hd; if(S.route&&(hd==null||v<3)){ const rb=routeBearing(xy[0],xy[1]); if(rb!=null) hdUse=rb; }
+  let m=match(xy[0],xy[1],hdUse);
   if(!m&&S.mode==='sim'&&!S.path){ m=nearestRoad(xy[0],xy[1],600); if(m){ [SIM.lat,SIM.lon]=toLL(m.px,m.py); logLine(`Simulation : départ sur la rue la plus proche (${Math.round(m.d)} m)`); } }
   if(!m){ S.noRoad++; if(S.noRoad>3){ S.match=null; S.path=null; } return; }
   S.noRoad=0; S.match=m; S.limit=m.w.max;
@@ -1293,11 +1303,14 @@ const KITTY={v:-1};
 function kittySet(eur){ const c=Math.floor(eur*100+1e-6); if(c===KITTY.v) return; const up=KITTY.v>=0&&c>KITTY.v; KITTY.v=c;
   $('kittyAmt').textContent=`${nf(c/100,2)} €`; if(up){ const k=$('kitty'); k.classList.add('bump'); setTimeout(()=>k.classList.remove('bump'),180); } }
 // Zoom pendant la conduite : boutons + / − et pincement à deux doigts sur la carte
-function zoomBy(d){ CAM.zoomAdj=clamp(CAM.zoomAdj+d,-4,2.5); }
+function zoomBy(d){ if(CAM.free&&GL&&MAP){ MAP.easeTo({zoom:MAP.getZoom()+d,duration:250}); CAM.freeT=performance.now(); return; } CAM.zoomAdj=clamp(CAM.zoomAdj+d,-6,2.5); }
+// Carte libre pendant le trajet : on la déplace et on zoome au doigt ; « Recentrer » (ou 20 s sans y toucher) revient à la voiture
+function camFree(on){ CAM.free=on; CAM.freeT=performance.now(); $('bRecenter').hidden=!on; }
+$('bRecenter').onclick=()=>camFree(false);
 $('bZoomIn').onclick=()=>zoomBy(0.5); $('bZoomOut').onclick=()=>zoomBy(-0.5);
 (()=>{ let p0=null, z0=0; const dist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
   const tgt=$('map');
-  tgt.addEventListener('touchstart',e=>{ if(S.running&&e.touches.length===2){ p0=dist(e.touches); z0=CAM.zoomAdj; } },{passive:true});
+  tgt.addEventListener('touchstart',e=>{ if(S.running&&!GL&&e.touches.length===2){ p0=dist(e.touches); z0=CAM.zoomAdj; } },{passive:true});
   tgt.addEventListener('touchmove',e=>{ if(p0&&e.touches.length===2){ CAM.zoomAdj=clamp(z0+Math.log2(dist(e.touches)/p0),-4,2.5); } },{passive:true});
   tgt.addEventListener('touchend',e=>{ if(e.touches.length<2) p0=null; },{passive:true}); })();
 function setPitch(v){ CAM.pitch=clamp(+v||0,0,70); try{ localStorage.setItem('pl-pitch',String(CAM.pitch)); }catch(e){} }
@@ -1476,7 +1489,7 @@ function hud(g){
 
 /* ===== Carte façon GPS (MapLibre + OpenFreeMap) ===== */
 // Caméra : zoom réglable pendant la conduite (boutons + / − ou pincement), inclinaison réglable (Labo)
-const CAM={zoomAdj:0,pitch:55}; try{ const p=+localStorage.getItem('pl-pitch'); if(p>=0&&p<=70&&localStorage.getItem('pl-pitch')!==null) CAM.pitch=p; }catch(e){}
+const CAM={zoomAdj:0,pitch:55,free:false,freeT:0}; try{ const p=+localStorage.getItem('pl-pitch'); if(p>=0&&p<=70&&localStorage.getItem('pl-pitch')!==null) CAM.pitch=p; }catch(e){}
 let MAP=null, GL=false, carMk=null, liftMk=null, destMk=null, homeMk=null, lastAhead=0, zoomS=17;
 const evMk=new Map(), EMPTY={type:'FeatureCollection',features:[]};
 const llOf=(x,y)=>{ const r=toLL(x,y); return [r[1],r[0]]; };
@@ -1546,7 +1559,7 @@ function initMap(){
 function glInteractive(on){ if(!MAP) return; for(const h of ['dragPan','scrollZoom','touchZoomRotate','doubleClickZoom','keyboard','boxZoom']) try{ on?MAP[h].enable():MAP[h].disable(); }catch(e){} }
 function clearDriveMarkers(){ for(const m of evMk.values()) m.remove(); evMk.clear(); if(liftMk){ liftMk.remove(); liftMk=null; } }
 async function glHome(){
-  if(!GL) return; clearDriveMarkers(); if(carMk){ carMk.remove(); carMk=null; }
+  if(!GL) return; clearDriveMarkers(); if(carMk){ carMk.remove(); carMk=null; } camFree(false);
   try{ MAP.getSource('ahead').setData(EMPTY); }catch(e){}
   glInteractive(true); MAP.setPadding({top:0,bottom:0,left:0,right:0}); MAP.jumpTo({pitch:0,bearing:0});
   if(PLAN){ glSetRoute(PLAN,true); return; }
@@ -1563,10 +1576,15 @@ function glSetRoute(P,fit){
 }
 function glDrive(){
   if(!GL) return; if(homeMk){ homeMk.remove(); homeMk=null; }
-  glInteractive(false); MAP.setPadding({top:Math.round(innerHeight*0.40),bottom:0,left:0,right:0});
+  glInteractive(true); try{ MAP.touchZoomRotate.disableRotation(); MAP.doubleClickZoom.disable(); }catch(e){} camFree(false);
+  MAP.setPadding({top:Math.round(innerHeight*0.40),bottom:0,left:0,right:0});
+  if(!MAP._plFree){ MAP._plFree=true; MAP.on('movestart',e=>{ if(S.running&&e.originalEvent) camFree(true); }); MAP.on('move',e=>{ if(CAM.free&&e.originalEvent) CAM.freeT=performance.now(); });
+    // doigt posé sur la carte : on arrête de suivre la voiture, sinon le recentrage annulerait le geste
+    const down=()=>{ if(S.running) CAM.hold=true; }, up=()=>{ CAM.hold=false; };
+    MAP.on('mousedown',down); MAP.on('touchstart',down); MAP.on('mouseup',up); MAP.on('touchend',up); MAP.on('touchcancel',up); }
   // La voiture n'est pas un repère de carte (arrondi au pixel près → vibration) : c'est un calque posé
   // au-dessus de la carte, à l'endroit exact où la caméra la centre.
-  if(!carMk){ const w=car3dEl(); w.style.cssText='position:absolute;left:0;top:0;z-index:2;will-change:transform;visibility:hidden'; MAP.getContainer().append(w);
+  if(!carMk){ const w=car3dEl(); w.style.cssText='position:absolute;left:0;top:0;z-index:2;will-change:transform;visibility:hidden;pointer-events:none'; MAP.getContainer().append(w);
     carMk={el:w,remove(){ w.remove(); }}; }
   zoomS=17;
 }
@@ -1582,7 +1600,8 @@ function drawGL(g,adv,dtR,ts){
   camStep(dtR);
   zoomS+=((17.7-1.5*clamp(V.v/25,0,1))-zoomS)*(1-Math.exp(-dtR/1.5));
   const ll=llOf(car[0],car[1]);
-  MAP.jumpTo({center:ll,bearing:(camH||0)*180/Math.PI,pitch:CAM.pitch,zoom:clamp(zoomS+CAM.zoomAdj,12,19.5)});
+  if(CAM.free&&performance.now()-CAM.freeT>20000) camFree(false);
+  if(!CAM.free&&!CAM.hold) MAP.jumpTo({center:ll,bearing:(camH||0)*180/Math.PI,pitch:CAM.pitch,zoom:clamp(zoomS+CAM.zoomAdj,10,19.5)});
   const sp=MAP.project(ll); carMk.el.style.visibility='visible'; carMk.el.style.transform=`translate(${(sp.x-48).toFixed(2)}px,${(sp.y-48).toFixed(2)}px)`;
   const rel=angSigned(car[2],camH??car[2])*180/Math.PI; carMk.el._car.style.transform=`rotateX(${MAP.getPitch().toFixed(1)}deg) rotateZ(${rel.toFixed(2)}deg) scale3d(1.35,1.35,1.35)`;
   if(ts-lastAhead<250) return; lastAhead=ts;
