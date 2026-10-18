@@ -98,6 +98,7 @@
 .ropt[aria-pressed="true"] b{color:var(--go)}
 .dinfo .fine{grid-column:1/-1}
 .dinfo .zcount{color:#E5484D;font-weight:600}
+.dinfo .zcount.wait{color:var(--muted);font-weight:500}
 .dinfo .ropts .ropt{grid-row:auto;grid-column:auto}
 .ropt small{font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}
 *{box-sizing:border-box}
@@ -1050,7 +1051,7 @@ function zonesStep(P){
   const x0=P.pts[0][0], y0=P.pts[0][1];
   for(const c of S.cams.values()){
     if(S.zones.has(c.id)||Math.hypot(c.x-x0,c.y-y0)>P.len+30) continue;
-    const n=nearOnPath(P.pts,c.x,c.y); if(n.off>18||n.d<3) continue;
+    const n=nearOnPath(P.pts,c.x,c.y); if(n.off>45||n.d<3) continue;
     const m=match(c.x,c.y,null), hw=m?m.w.hw:'', max=c.max||(m&&m.w.max)||S.limit||null;
     const L=zoneLen(max,hw), f=zoneFrac(c.id);
     S.zones.set(c.id,{id:c.id,start:S.odo+n.d-L*f,end:S.odo+n.d+L*(1-f),max,L});
@@ -1077,27 +1078,33 @@ function llSlice(C,cum,a,b){ const out=[], at=s=>{ let i=1; while(i<cum.length-1
 async function routeZones(P){
   if(!P||!P.coords||P.coords.length<2){ RZ.key=''; RZ.zones=[]; rzDraw(); return; }
   const C=P.coords, key=`${C.length}|${C[0]}|${C[C.length-1]}|${Math.round(P.distance||0)}`;
-  if(RZ.key===key){ rzDraw(); return; } RZ.key=key; RZ.zones=[]; RZ.ready=false; rzDraw();
+  if(RZ.key===key&&RZ.state!=='err'){ rzDraw(); return; } RZ.key=key; RZ.zones=[]; RZ.ready=false; RZ.state='load'; rzDraw();
   let so=90,we=180,no=-90,ea=-180; for(const c of C){ so=Math.min(so,c[1]); no=Math.max(no,c[1]); we=Math.min(we,c[0]); ea=Math.max(ea,c[0]); }
   const q=`[out:json][timeout:25];node[highway=speed_camera](${(so-0.005).toFixed(4)},${(we-0.005).toFixed(4)},${(no+0.005).toFixed(4)},${(ea+0.005).toFixed(4)});out;`;
-  let js=null; for(const ep of EPS){ try{ const r=await fetch(ep+'?data='+encodeURIComponent(q),{signal:tmo(25000)}); if(r.ok){ js=await r.json(); break; } }catch(e){} if(RZ.key!==key) return; }
-  if(RZ.key!==key||!js) return;
+  let js=null, why='';
+  for(const ep of EPS){ try{ const r=await fetch(ep+'?data='+encodeURIComponent(q),{signal:tmo(20000)}); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); if(!j||!Array.isArray(j.elements)) throw new Error('réponse vide'); js=j; break; }
+    catch(e){ why=(e&&e.message)||String(e); logLine(`Zones de contrôle : ${ep.split('/')[2]} indisponible (${why})`); } if(RZ.key!==key) return; }
+  if(RZ.key!==key) return;
+  if(!js){ RZ.state='err'; zoneCountShow(); return; }
   const cum=[0]; for(let i=1;i<C.length;i++) cum.push(cum[i-1]+llDist(C[i-1],C[i]));
   const zs=[];
   for(const el of js.elements||[]){ if(el.lat==null||el.lon==null) continue;
     const kx=111320*Math.cos(el.lat*Math.PI/180), ky=110540; let best={d:Infinity,s:0};
     for(let i=1;i<C.length;i++){ const a=C[i-1], b=C[i];
-      if(Math.min(a[1],b[1])>el.lat+0.001||Math.max(a[1],b[1])<el.lat-0.001||Math.min(a[0],b[0])>el.lon+0.0015||Math.max(a[0],b[0])<el.lon-0.0015) continue;
+      if(Math.min(a[1],b[1])>el.lat+0.002||Math.max(a[1],b[1])<el.lat-0.002||Math.min(a[0],b[0])>el.lon+0.003||Math.max(a[0],b[0])<el.lon-0.003) continue;
       const ax=(a[0]-el.lon)*kx, ay=(a[1]-el.lat)*ky, sx=(b[0]-a[0])*kx, sy=(b[1]-a[1])*ky, L2=sx*sx+sy*sy; if(L2<1e-6) continue;
       const t=clamp(-(ax*sx+ay*sy)/L2,0,1), d=Math.hypot(ax+t*sx,ay+t*sy); if(d<best.d) best={d,s:cum[i-1]+t*Math.sqrt(L2)}; }
-    if(best.d>20) continue;
+    if(best.d>45) continue;
     const max=parseMax(el.tags||{}), L=zoneLen(max,''), f=zoneFrac(el.id);
     zs.push({a:Math.max(0,best.s-L*f),b:Math.min(cum[cum.length-1],best.s+L*(1-f)),max}); }
   zs.sort((x,y)=>x.a-y.a); const merged=[]; for(const z of zs){ const l=merged[merged.length-1]; if(l&&z.a<=l.b) l.b=Math.max(l.b,z.b); else merged.push({...z}); }
-  Object.assign(RZ,{zones:merged,C,cum,ready:true}); rzDraw(); zoneCountShow();
-  logLine(`Zones de contrôle sur l’itinéraire : ${merged.length}`); }
+  Object.assign(RZ,{zones:merged,C,cum,ready:true,state:'ok'}); rzDraw(); zoneCountShow();
+  logLine(`Zones de contrôle sur l’itinéraire : ${merged.length} (${(js.elements||[]).length} radars dans la région)`); }
 function zoneCountShow(){ const el=$('zoneCount'); if(!el) return; const n=RZ.zones.length;
-  el.hidden=!RZ.ready||!ZONES.on; el.textContent=n?`${n} zone${n>1?'s':''} de contrôle sur le trajet (en rouge sur la carte)`:'Aucune zone de contrôle connue sur le trajet'; }
+  el.hidden=!ZONES.on||!RZ.state; el.classList.toggle('wait',RZ.state!=='ok');
+  el.textContent=RZ.state==='load'?'Recherche des zones de contrôle…':RZ.state==='err'?'Zones de contrôle indisponibles pour le moment (réseau) : touchez pour réessayer'
+    :n?`${n} zone${n>1?'s':''} de contrôle sur le trajet (en rouge sur la carte)`:'Aucune zone de contrôle connue sur le trajet';
+  el.onclick=RZ.state==='err'?()=>{ if(PLAN) routeZones(PLAN); }:null; }
 function rzDraw(){ if(!GL||!MAP) return; const feats=[];
   if(ZONES.on&&RZ.C){ for(const z of RZ.zones) feats.push({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:llSlice(RZ.C,RZ.cum,z.a,z.b)}}); }
   try{ MAP.getSource('rzones').setData({type:'FeatureCollection',features:feats}); }catch(e){} zoneCountShow(); }
@@ -1636,7 +1643,7 @@ function initMap(){
       MAP.addLayer({id:'route-case',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#0D4A73','line-opacity':.35,'line-width':['interpolate',['linear'],['zoom'],10,6,17,20]}});
       MAP.addLayer({id:'route',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#2A8FD6','line-width':['interpolate',['linear'],['zoom'],10,3.5,17,13]}});
       MAP.addSource('rzones',{type:'geojson',data:EMPTY});
-      MAP.addLayer({id:'rzones',type:'line',source:'rzones',layout:{'line-cap':'butt','line-join':'round'},paint:{'line-color':'#FF4D4F','line-opacity':.55,'line-width':['interpolate',['linear'],['zoom'],8,6,12,9,17,24]}});
+      MAP.addLayer({id:'rzones',type:'line',source:'rzones',layout:{'line-cap':'butt','line-join':'round'},paint:{'line-color':'#FF3B3F','line-opacity':.85,'line-width':['interpolate',['linear'],['zoom'],6,6,10,8,14,12,17,24]}});
       MAP.addSource('ahead',{type:'geojson',data:EMPTY});
       MAP.addLayer({id:'ahead',type:'line',source:'ahead',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],13,5,18,16],'line-color':['match',['get','c'],1,'#E58A10',2,'#D3433A','#24965C']}});
       GL=true; $('cv').hidden=true; mapTheme(!!NIGHT.dark); try{ document.querySelectorAll('.maplibregl-ctrl-attrib').forEach(a=>a.classList.remove('maplibregl-compact-show')); }catch(e){}
