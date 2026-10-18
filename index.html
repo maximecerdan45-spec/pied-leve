@@ -98,6 +98,8 @@
 .ropt[aria-pressed="true"] b{color:var(--go)}
 .dinfo .fine{grid-column:1/-1}
 .dinfo .zcount{color:#E5484D;font-weight:600}
+.dinfo .pline{grid-column:1/-1;text-align:left;border:0;border-radius:12px;padding:8px 10px;background:color-mix(in srgb,var(--go) 14%,transparent);color:var(--ink);font:600 14px var(--f-body);cursor:pointer}
+.dinfo .pline.wait{background:none;padding:0;color:var(--muted);font-weight:500}
 .dinfo .zcount.wait{color:var(--muted);font-weight:500}
 .dinfo .ropts .ropt{grid-row:auto;grid-column:auto}
 .ropt small{font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}
@@ -343,6 +345,8 @@ details.more p{font-size:14px}
 /* zoom pendant la conduite, bouton stations-service */
 .zonec{position:fixed;left:max(12px,var(--sa-left));top:calc(var(--sa-top) + 134px);z-index:4;display:flex;align-items:center;gap:8px;height:40px;padding:0 14px 0 10px;border-radius:20px;background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 2px var(--lift),var(--shadow);font:700 15px var(--f-display);max-width:calc(100% - 24px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .zonec svg{width:20px;height:20px;color:var(--lift);flex:none}
+.pleinc{top:calc(var(--sa-top) + 182px);box-shadow:inset 0 0 0 2px var(--go),var(--shadow);border:0;cursor:pointer}
+.pleinc svg{color:var(--go)}
 .zonec.over{box-shadow:inset 0 0 0 2px var(--brake),var(--shadow)}
 .zonec.over svg{color:var(--brake)}
 .recenter{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--sa-bottom) + 194px);z-index:4;display:flex;align-items:center;gap:8px;height:48px;padding:0 20px;border:0;border-radius:24px;background:var(--ink);color:var(--surface);font:700 17px var(--f-display);box-shadow:var(--shadow);cursor:pointer}
@@ -357,6 +361,7 @@ details.more p{font-size:14px}
 .fhead .round{width:44px;height:44px}
 .fkinds{display:flex;gap:6px;overflow-x:auto}
 .fkinds button{flex:none;border:0;border-radius:999px;min-height:40px;padding:0 14px;font:600 14px var(--f-body);background:var(--bg);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line);cursor:pointer}
+.ftank span{align-self:center;font-size:14px;color:var(--muted);flex:none}
 .fkinds button[aria-pressed="true"]{background:var(--ink);color:var(--surface);box-shadow:none}
 .flist{display:flex;flex-direction:column;gap:8px}
 .fst{display:flex;align-items:center;gap:12px;width:100%;border:0;border-radius:16px;background:var(--bg);color:var(--ink);padding:12px 14px;text-align:left;cursor:pointer;min-height:64px}
@@ -457,6 +462,7 @@ details.more p{font-size:14px}
     <div class="eta" id="etaBox" hidden><b id="hEtaT">Pied Levé</b><span id="hEtaI">sans destination</span></div>
     <span id="hEco" hidden>0,00 L</span>
     <div class="kitty" id="kitty" role="status" aria-label="Cagnotte du trajet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 10.5c0-3.6-3.1-6-7-6S5 6.9 5 10.5c0 1.9.9 3.4 2.3 4.5L7 18.5h3l.5-1.6c.5.1 1 .1 1.5.1s1 0 1.5-.1l.5 1.6h3l-.3-3.5c.9-.7 1.6-1.6 1.9-2.6H21v-2.5h-2.1"/><path d="M10 4.8c.4-1.2 1.6-2 3-2"/><circle cx="15.5" cy="9.5" r=".6" fill="currentColor"/></svg><b id="kittyAmt">0,00 €</b></div>
+    <button class="zonec pleinc" id="pleinChip" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21V5a2 2 0 012-2h6a2 2 0 012 2v16M3 21h12M4 10h10"/><path d="M14 8h2a2 2 0 012 2v6a1.5 1.5 0 003 0V8l-3-3"/></svg><span id="pleinTxt"></span></button>
     <div class="zonec" id="zoneChip" role="status" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/></svg><span id="zoneTxt"></span></div>
     <button class="recenter" id="bRecenter" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 18-7-4-7 4z"/></svg>Recentrer</button>
     <div class="zoomb"><button class="round" id="bZoomIn" type="button" aria-label="Zoomer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button><button class="round" id="bZoomOut" type="button" aria-label="Dézoomer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 12h14"/></svg></button></div>
@@ -476,8 +482,9 @@ details.more p{font-size:14px}
   </div>
 </div>
 <div class="fuelsheet" id="ovFuel" role="dialog" aria-label="Stations-service" hidden>
-  <div class="fhead"><b>Stations-service</b><button class="round" id="bFuelClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="fhead"><b id="fuelHead">Stations-service</b><button class="round" id="bFuelClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="fkinds" id="fuelKinds" role="group" aria-label="Carburant"></div>
+  <div class="fkinds ftank" id="fuelTank" role="group" aria-label="Taille du plein" hidden></div>
   <div class="flist" id="fuelList"></div>
   <p class="fine" id="fuelNote"></p>
 </div>
@@ -799,11 +806,12 @@ function renderPlan(){
       bt.append(k,d,c); bt.onclick=()=>{ ROUTE_MODE=mode; try{ localStorage.setItem('pl-route',mode); }catch(e){} planPick(mode); renderPlan(); };
       box2.append(bt); }
     const n=document.createElement('small'); n.className='fine'; n.textContent='Sans trafic. Carburant estimé au prix moyen.';
-    box.append(b,x,box2,n,zoneCountEl());
+    box.append(b,x,box2,n,zoneCountEl(),pleinEl());
   } else {
     const sp=document.createElement('span'); sp.textContent=o?`${line(PLAN)} · le plus rapide est aussi le plus court`:`${nf(PLAN.distance/1000,1)} km · environ ${fmtDur(PLAN.duration)} (sans trafic)`;
-    box.append(b,sp,x,zoneCountEl()); }
+    box.append(b,sp,x,zoneCountEl(),pleinEl()); }
 }
+function pleinEl(){ const z=document.createElement('button'); z.type='button'; z.className='pline'; z.id='pleinLine'; z.hidden=true; setTimeout(pleinShow,0); return z; }
 function zoneCountEl(){ const z=document.createElement('small'); z.className='fine zcount'; z.id='zoneCount'; z.hidden=true; setTimeout(zoneCountShow,0); return z; }
 let searchSeq=0, searchTimer=null;
 async function runSearch(q){
@@ -1374,6 +1382,7 @@ function gaugeP(g){ gaugeM(g); return S.gauge.p; }
 function updateCue(g){
   if(!S.running) return;
   try{ zoneShow(); }catch(e){}
+  try{ pleinDrive(); }catch(e){}
   updateCueCore(g); bubbleSet(g);
 }
 function updateCueCore(g){
@@ -1425,19 +1434,21 @@ const FUELS=[['gazole','Gazole'],['e10','SP95-E10'],['sp95','SP95'],['sp98','SP9
 let FUEL='gazole'; try{ const f=localStorage.getItem('pl-fuel'); if(FUELS.some(x=>x[0]===f)) FUEL=f; }catch(e){}
 const FST={list:null,mk:[],pos:null};
 function fuelKinds(){ const box=$('fuelKinds'); box.innerHTML=''; for(const [k,n] of FUELS){ const b=document.createElement('button'); b.type='button'; b.textContent=n; b.setAttribute('aria-pressed',String(k===FUEL));
-  b.onclick=()=>{ FUEL=k; try{ localStorage.setItem('pl-fuel',k); }catch(e){} fuelKinds(); fuelRender(); }; box.append(b); } }
+  b.onclick=()=>{ FUEL=k; try{ localStorage.setItem('pl-fuel',k); }catch(e){} fuelKinds(); fuelRender(); pleinShow(); }; box.append(b); } }
 async function fuelGov(lat,lon){ const w=`within_distance(geom, geom'POINT(${lon.toFixed(5)} ${lat.toFixed(5)})', 10km)`;
   const r=await fetch(`https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records?where=${encodeURIComponent(w)}&limit=80`,{signal:AbortSignal.timeout?AbortSignal.timeout(9000):undefined});
-  if(!r.ok) throw new Error('HTTP '+r.status); const js=await r.json();
+  if(!r.ok) throw new Error('HTTP '+r.status); return fuelParse(await r.json()); }
+function fuelParse(js){
   return (js.results||[]).map(x=>{ const la=x.geom&&x.geom.lat!=null?x.geom.lat:(x.latitude!=null?(Math.abs(+x.latitude)>1000?+x.latitude/1e5:+x.latitude):null);
     const lo=x.geom&&x.geom.lon!=null?x.geom.lon:(x.longitude!=null?(Math.abs(+x.longitude)>1000?+x.longitude/1e5:+x.longitude):null);
     const prices={}; for(const k in x){ const m=/^(gazole|sp95|e10|sp98|e85|gplc)_prix$/.exec(k); if(m&&x[k]!=null&&!isNaN(+x[k])) prices[m[1]]=+x[k]; }
-    return {lat:la,lon:lo,name:'',addr:[x.adresse,x.ville].filter(Boolean).join(', '),prices}; }).filter(x=>x.lat!=null&&x.lon!=null); }
+    return {id:x.id,lat:la,lon:lo,name:'',addr:[x.adresse,x.ville].filter(Boolean).join(', '),city:x.ville||'',prices}; }).filter(x=>x.lat!=null&&x.lon!=null); }
 async function fuelOsm(lat,lon){ const q=`[out:json][timeout:15];nwr(around:10000,${lat.toFixed(5)},${lon.toFixed(5)})[amenity=fuel];out center 80;`;
   const r=await fetch(EPS[0]+'?data='+encodeURIComponent(q)); if(!r.ok) throw new Error('HTTP '+r.status); const js=await r.json();
   return (js.elements||[]).map(e=>({lat:e.lat??(e.center&&e.center.lat),lon:e.lon??(e.center&&e.center.lon),name:(e.tags&&(e.tags.brand||e.tags.name))||'',addr:'',prices:{}})).filter(x=>x.lat!=null); }
 async function fuelOpen(){
-  $('ovFuel').hidden=false; fuelKinds(); $('fuelList').innerHTML='<p class="fine">Recherche des stations…</p>'; $('fuelNote').textContent='';
+  $('ovFuel').hidden=false; fuelKinds();
+  if(PLAN&&PM.state==='ok'&&PM.list.length){ FST.route=true; fuelRender(); return; } FST.route=false; $('fuelList').innerHTML='<p class="fine">Recherche des stations…</p>'; $('fuelNote').textContent='';
   let lat,lon; try{ if(S.running&&S.xy){ [lat,lon]=toLL(S.xy[0],S.xy[1]); } else { const p=await getPos(); lat=p.lat; lon=p.lon; } }catch(e){ $('fuelList').innerHTML='<p class="fine">Position indisponible.</p>'; return; }
   FST.pos={lat,lon};
   const [g,o]=await Promise.allSettled([fuelGov(lat,lon),fuelOsm(lat,lon)]);
@@ -1453,7 +1464,22 @@ function fuelRank(){ const P=FST.pos, list=FST.list||[]; if(!P) return [];
       if(hd!=null&&d>50){ let a=Math.atan2(dx,dy)-hd; while(a>Math.PI) a-=2*Math.PI; while(a<-Math.PI) a+=2*Math.PI; ahead=Math.abs(a)<1.2; }
       return {...st,d,on,along,ahead}; })
     .sort((a,b)=>(b.on-a.on)||(a.on&&b.on?a.along-b.along:0)||(b.ahead-a.ahead)||(a.d-b.d)).slice(0,3); }
-function fuelRender(){ const box=$('fuelList'); if(!FST.list){ return; } box.innerHTML='';
+function fuelTanks(){ const box=$('fuelTank'); box.hidden=!FST.route; if(!FST.route) return; box.innerHTML='<span>Plein de</span>';
+  for(const t of [20,30,40,50,60]){ const b=document.createElement('button'); b.type='button'; b.textContent=t+' L'; b.setAttribute('aria-pressed',String(t===PM.tank));
+    b.onclick=()=>{ PM.tank=t; try{ localStorage.setItem('pl-plein',String(t)); }catch(e){} fuelRender(); pleinShow(); }; box.append(b); } }
+function fuelRenderRoute(){ const box=$('fuelList'); box.innerHTML=''; fuelTanks(); $('fuelHead').textContent='Plein Malin';
+  const {top,med}=pleinRank(), kname=(FUELS.find(x=>x[0]===FUEL)||[])[1];
+  if(!top.length){ box.innerHTML=`<p class="fine">Aucun prix de ${kname} trouvé le long du trajet.</p>`; return; }
+  const from=S.running&&S.route?(S.route.s||0):0;
+  top.filter(x=>x.along>from-300).slice(0,3).forEach((st,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='fst';
+    b.innerHTML=`<div class="go">${i+1}</div><div class="n"><b></b><small></small></div><div class="p">${nf(st.price,3)} €<small></small></div>`;
+    b.querySelector('b').textContent=st.addr||st.city||'Station-service';
+    b.querySelector('.n small').textContent=`dans ${fmtD(Math.max(0,st.along-from))} · détour ${nf(st.det,1)} km`;
+    b.querySelector('.p small').textContent=st.gain>=0.05?`−${nf(st.gain,2)} €`:'prix moyen';
+    b.onclick=()=>{ logLine(`Plein Malin choisi : ${st.addr||st.city}`); location.href=`https://waze.com/ul?ll=${st.lat.toFixed(6)},${st.lon.toFixed(6)}&navigate=yes`; };
+    box.append(b); });
+  $('fuelNote').textContent=`Gain sur un plein de ${PM.tank} L par rapport au prix médian du trajet (${nf(med,3)} €), détour compris. Prix : prix-carburants.gouv.fr. Ne touchez pas l’écran en roulant.`; }
+function fuelRender(){ if(FST.route) return fuelRenderRoute(); $('fuelHead').textContent='Stations-service'; $('fuelTank').hidden=true; const box=$('fuelList'); if(!FST.list){ return; } box.innerHTML='';
   const top=fuelRank(); if(!top.length){ box.innerHTML='<p class="fine">Aucune station trouvée à moins de 10 km.</p>'; return; }
   const kname=(FUELS.find(x=>x[0]===FUEL)||[])[1];
   top.forEach((st,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='fst';
@@ -1467,6 +1493,63 @@ function fuelRender(){ const box=$('fuelList'); if(!FST.list){ return; } box.inn
   fuelMarkers(top); }
 function fuelMarkers(top){ FST.mk.forEach(m=>m.remove()); FST.mk=[]; if(!GL||!MAP) return;
   top.forEach((st,i)=>{ const e=document.createElement('div'); e.className='mk-fuel'; e.innerHTML=`<span>${i+1}</span>`; FST.mk.push(new maplibregl.Marker({element:e,anchor:'bottom'}).setLngLat([st.lon,st.lat]).addTo(MAP)); }); }
+/* ===== Plein Malin : où faire le plein sur l'itinéraire =====
+   Stations à moins de 2,5 km du trajet (prix du jour), comparées au prix médian sur le trajet.
+   Gain = (prix médian − prix de la station) × litres du plein − coût du détour (aller-retour, 6,5 L/100 km). */
+const PM={key:'',state:'',list:[],tank:40,warn:false,said:false};
+try{ const t=+localStorage.getItem('pl-plein'); if([20,30,40,50,60].includes(t)) PM.tank=t; }catch(e){}
+function routeProject(C,cum,lat,lon){ const kx=111320*Math.cos(lat*Math.PI/180), ky=110540; let best={d:Infinity,s:0};
+  for(let i=1;i<C.length;i++){ const a=C[i-1], b=C[i];
+    if(Math.min(a[1],b[1])>lat+0.03||Math.max(a[1],b[1])<lat-0.03||Math.min(a[0],b[0])>lon+0.045||Math.max(a[0],b[0])<lon-0.045) continue;
+    const ax=(a[0]-lon)*kx, ay=(a[1]-lat)*ky, sx=(b[0]-a[0])*kx, sy=(b[1]-a[1])*ky, L2=sx*sx+sy*sy; if(L2<1e-6) continue;
+    const t=clamp(-(ax*sx+ay*sy)/L2,0,1), d=Math.hypot(ax+t*sx,ay+t*sy); if(d<best.d) best={d,s:cum[i-1]+t*Math.sqrt(L2)}; }
+  return best; }
+async function pleinRoute(P){
+  if(!P||!P.coords||P.coords.length<2){ PM.key=''; PM.list=[]; PM.state=''; pleinShow(); return; }
+  const C=P.coords, key=`${C.length}|${C[0]}|${C[C.length-1]}|${Math.round(P.distance||0)}`;
+  if(PM.key===key&&PM.state!=='err') { pleinShow(); return; }
+  Object.assign(PM,{key,state:'load',list:[],said:false}); pleinShow();
+  const cum=[0]; for(let i=1;i<C.length;i++) cum.push(cum[i-1]+llDist(C[i-1],C[i]));
+  // un cercle de 3 km tous les 4 km le long du trajet, par paquets de 25 cercles (adresse de requête raisonnable)
+  const circ=[]; let k=1; for(let d=0;d<=cum[cum.length-1];d+=4000){ while(k<cum.length-1&&cum[k]<d) k++; const f=clamp((d-cum[k-1])/Math.max(1,cum[k]-cum[k-1]),0,1);
+    circ.push([C[k-1][0]+(C[k][0]-C[k-1][0])*f,C[k-1][1]+(C[k][1]-C[k-1][1])*f]); }
+  const packs=[]; for(let i=0;i<circ.length;i+=25) packs.push(circ.slice(i,i+25));
+  const base='https://data.economie.gouv.fr/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records';
+  try{
+    const res=await Promise.all(packs.map(async pk=>{ const w=pk.map(c=>`within_distance(geom, geom'POINT(${c[0].toFixed(5)} ${c[1].toFixed(5)})', 3km)`).join(' OR ');
+      const out=[]; for(let off=0;off<300;off+=100){ const r=await fetch(`${base}?where=${encodeURIComponent(w)}&limit=100&offset=${off}`,{signal:tmo(15000)});
+        if(!r.ok) throw new Error('HTTP '+r.status); const js=await r.json(); out.push(...fuelParse(js)); if((js.results||[]).length<100) break; }
+      return out; }));
+    if(PM.key!==key) return;
+    const seen=new Set(), list=[];
+    for(const st of res.flat()){ const id=st.id||(st.lat.toFixed(5)+','+st.lon.toFixed(5)); if(seen.has(id)) continue; seen.add(id);
+      const pr=routeProject(C,cum,st.lat,st.lon); if(pr.d>2500) continue; list.push({...st,off:pr.d,along:pr.s}); }
+    Object.assign(PM,{list,state:'ok',cum}); logLine(`Plein Malin : ${list.length} stations le long du trajet`);
+  }catch(e){ if(PM.key!==key) return; PM.state='err'; logLine(`Plein Malin indisponible (${(e&&e.message)||e})`); }
+  pleinShow(); }
+// classement pour le carburant choisi : gain net d'un plein
+function pleinRank(){ const L=PM.list.filter(x=>x.prices[FUEL]!=null); if(!L.length) return {top:[],med:null};
+  const ps=L.map(x=>x.prices[FUEL]).sort((a,b)=>a-b), med=ps[Math.floor(ps.length/2)];
+  const top=L.map(x=>{ const det=(2*x.off*1.3+300)/1000, cost=det*0.065*x.prices[FUEL]; return {...x,price:x.prices[FUEL],det,gain:(med-x.prices[FUEL])*PM.tank-cost}; })
+    .sort((a,b)=>b.gain-a.gain);
+  return {top,med}; }
+function pleinBest(){ const {top}=pleinRank(); const b=top[0]; return b&&b.gain>=0.5?b:null; }
+function pleinShow(){ const el=$('pleinLine'); if(!el) return;
+  if(!PM.state){ el.hidden=true; return; } el.hidden=false; el.classList.toggle('wait',PM.state!=='ok');
+  const kname=(FUELS.find(x=>x[0]===FUEL)||[])[1]||'';
+  if(PM.state==='load'){ el.textContent='Plein Malin : recherche des prix sur le trajet…'; el.onclick=null; return; }
+  if(PM.state==='err'){ el.textContent='Plein Malin : prix indisponibles pour le moment (réseau) · touchez pour réessayer'; el.onclick=()=>{ if(PLAN) pleinRoute(PLAN); }; return; }
+  const b=pleinBest(), {top}=pleinRank();
+  el.textContent=b?`Plein Malin : ${b.city||'station'} à ${fmtD(b.along)} · ${nf(b.price,3)} € · −${nf(b.gain,2)} € sur un plein de ${PM.tank} L`
+    :top.length?`Plein Malin : prix du ${kname} proches partout sur le trajet, pas besoin de détour`:`Plein Malin : aucun prix de ${kname} trouvé sur le trajet`;
+  el.onclick=()=>fuelOpen(); }
+// en roulant : on prévient 4 km avant la station conseillée
+function pleinDrive(){ const el=$('pleinChip'); if(!el) return; const R=S.route, b=PM.state==='ok'&&R&&PLAN&&PM.key?pleinBest():null;
+  const d=b?b.along-(R.s||0):null;
+  if(!b||d<-200||d>4000){ el.hidden=true; return; }
+  const t=`Plein Malin dans ${fmtD(Math.max(0,d))} · ${nf(b.price,3)} €`; if($('pleinTxt').textContent!==t) $('pleinTxt').textContent=t; el.hidden=false;
+  el.onclick=()=>{ location.href=`https://waze.com/ul?ll=${b.lat.toFixed(6)},${b.lon.toFixed(6)}&navigate=yes`; };
+  if(!PM.said){ PM.said=true; logLine(`Plein Malin : station conseillée dans ${fmtD(d)}`); say(`Plein Malin. Station la moins chère dans ${Math.max(1,Math.round(d/1000))} kilomètres, ${Math.floor(b.price)} euro${b.price>=2?'s':''} ${String(Math.round((b.price%1)*100)).padStart(2,'0')} le litre.`); } }
 function fuelClose(){ $('ovFuel').hidden=true; FST.mk.forEach(m=>m.remove()); FST.mk=[]; }
 $('bFuel').onclick=fuelOpen; $('bFuelClose').onclick=fuelClose; $('bFuelMenu').onclick=()=>{ $('ovMenu').hidden=true; fuelOpen(); };
 function setVoice(on){ voiceOn=on; $('bSound').setAttribute('aria-checked',String(on));
@@ -1673,7 +1756,7 @@ async function glHome(){
   try{ const p=await getPos(); if(!homeMk) homeMk=new maplibregl.Marker({element:carEl()}); homeMk.setLngLat([p.lon,p.lat]).addTo(MAP); if(!PLAN&&!S.running) MAP.easeTo({center:[p.lon,p.lat],zoom:14.5,duration:800}); }catch(e){}
 }
 function glSetRoute(P,fit){
-  routeZones(P);
+  routeZones(P); pleinRoute(P);
   if(!GL) return;
   const coords=P?P.coords:[];
   try{ MAP.getSource('route').setData(P?{type:'Feature',geometry:{type:'LineString',coordinates:coords},properties:{}}:EMPTY); }catch(e){}
