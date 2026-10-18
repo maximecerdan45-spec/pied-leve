@@ -708,7 +708,7 @@ async function geocode(q){
 function distKm(a,b){ const R=6371, dLa=(b.lat-a.lat)*Math.PI/180, dLo=(b.lon-a.lon)*Math.PI/180, h=Math.sin(dLa/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
 // Itinéraires : le plus rapide (OSRM, plusieurs variantes) et le plus court en distance (Valhalla, option « shortest »).
 // Deux serveurs OSRM publics : si le premier ne répond pas, on passe au second.
-const tmo=ms=>(window.AbortSignal&&AbortSignal.timeout)?AbortSignal.timeout(ms):undefined;
+const tmo=ms=>{ if(window.AbortSignal&&AbortSignal.timeout) return AbortSignal.timeout(ms); try{ const c=new AbortController(); setTimeout(()=>c.abort(),ms); return c.signal; }catch(e){ return undefined; } };
 function polyDecode(str,prec){ const f=Math.pow(10,prec), out=[]; let i=0,lat=0,lon=0;
   while(i<str.length){ for(let k=0;k<2;k++){ let b,sh=0,r=0; do{ b=str.charCodeAt(i++)-63; r|=(b&0x1f)<<sh; sh+=5; }while(b>=0x20&&i<=str.length); const d=(r&1)?~(r>>1):(r>>1); if(k===0) lat+=d; else lon+=d; } out.push([lon/f,lat/f]); }
   return out; }
@@ -1079,11 +1079,23 @@ async function routeZones(P){
   if(!P||!P.coords||P.coords.length<2){ RZ.key=''; RZ.zones=[]; rzDraw(); return; }
   const C=P.coords, key=`${C.length}|${C[0]}|${C[C.length-1]}|${Math.round(P.distance||0)}`;
   if(RZ.key===key&&RZ.state!=='err'){ rzDraw(); return; } RZ.key=key; RZ.zones=[]; RZ.ready=false; RZ.state='load'; rzDraw();
-  let so=90,we=180,no=-90,ea=-180; for(const c of C){ so=Math.min(so,c[1]); no=Math.max(no,c[1]); we=Math.min(we,c[0]); ea=Math.max(ea,c[0]); }
-  const q=`[out:json][timeout:25];node[highway=speed_camera](${(so-0.005).toFixed(4)},${(we-0.005).toFixed(4)},${(no+0.005).toFixed(4)},${(ea+0.005).toFixed(4)});out;`;
-  let js=null, why='';
-  for(const ep of EPS){ try{ const r=await fetch(ep+'?data='+encodeURIComponent(q),{signal:tmo(20000)}); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); if(!j||!Array.isArray(j.elements)) throw new Error('réponse vide'); js=j; break; }
-    catch(e){ why=(e&&e.message)||String(e); logLine(`Zones de contrôle : ${ep.split('/')[2]} indisponible (${why})`); } if(RZ.key!==key) return; }
+  // Recherche dans une bande de 120 m autour du trajet (tracé simplifié), et non dans tout le rectangle :
+  // sur un long trajet, le rectangle couvre des millions de points et le serveur met trop longtemps à répondre.
+  const lat0=C[Math.floor(C.length/2)][1], kx=111320*Math.cos(lat0*Math.PI/180), ky=110540, XY=C.map(c=>[c[0]*kx,c[1]*ky]);
+  const keep=new Uint8Array(C.length); keep[0]=keep[C.length-1]=1; const st=[[0,C.length-1]];
+  while(st.length){ const [a,b]=st.pop(); let md=0,mi=-1; const ax=XY[a][0],ay=XY[a][1],sx=XY[b][0]-ax,sy=XY[b][1]-ay,L=Math.hypot(sx,sy)||1;
+    for(let i=a+1;i<b;i++){ const d=Math.abs((XY[i][0]-ax)*sy-(XY[i][1]-ay)*sx)/L; if(d>md){ md=d; mi=i; } }
+    if(md>40&&mi>0){ keep[mi]=1; st.push([a,mi],[mi,b]); } }
+  const pts=[]; for(let i=0;i<C.length;i++) if(keep[i]) pts.push(`${C[i][1].toFixed(5)},${C[i][0].toFixed(5)}`);
+  const q=`[out:json][timeout:25];node(around:120,${pts.join(',')})[highway=speed_camera];out;`;
+  // les trois serveurs en même temps : le premier qui répond gagne
+  let js=null, done=false; const ctls=[];
+  try{ js=await Promise.any(EPS.map(ep=>{ const c=new AbortController(); ctls.push(c); const to=setTimeout(()=>c.abort(),30000);
+      return fetch(ep,{method:'POST',body:'data='+encodeURIComponent(q),headers:{'Content-Type':'application/x-www-form-urlencoded'},signal:c.signal})
+        .then(async r=>{ if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); if(!j||!Array.isArray(j.elements)) throw new Error('réponse vide'); clearTimeout(to); return j; })
+        .catch(e=>{ clearTimeout(to); if(!done) logLine(`Zones de contrôle : ${ep.split('/')[2]} indisponible (${(e&&e.message)||e})`); throw e; }); })); }
+  catch(e){ js=null; }
+  done=true; ctls.forEach(c=>{ try{ c.abort(); }catch(e){} });
   if(RZ.key!==key) return;
   if(!js){ RZ.state='err'; zoneCountShow(); return; }
   const cum=[0]; for(let i=1;i<C.length;i++) cum.push(cum[i-1]+llDist(C[i-1],C[i]));
