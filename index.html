@@ -97,6 +97,7 @@
 .ropt[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--go)}
 .ropt[aria-pressed="true"] b{color:var(--go)}
 .dinfo .fine{grid-column:1/-1}
+.dinfo .zcount{color:#E5484D;font-weight:600}
 .dinfo .ropts .ropt{grid-row:auto;grid-column:auto}
 .ropt small{font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}
 *{box-sizing:border-box}
@@ -797,11 +798,12 @@ function renderPlan(){
       bt.append(k,d,c); bt.onclick=()=>{ ROUTE_MODE=mode; try{ localStorage.setItem('pl-route',mode); }catch(e){} planPick(mode); renderPlan(); };
       box2.append(bt); }
     const n=document.createElement('small'); n.className='fine'; n.textContent='Sans trafic. Carburant estimé au prix moyen.';
-    box.append(b,x,box2,n);
+    box.append(b,x,box2,n,zoneCountEl());
   } else {
     const sp=document.createElement('span'); sp.textContent=o?`${line(PLAN)} · le plus rapide est aussi le plus court`:`${nf(PLAN.distance/1000,1)} km · environ ${fmtDur(PLAN.duration)} (sans trafic)`;
-    box.append(b,sp,x); }
+    box.append(b,sp,x,zoneCountEl()); }
 }
+function zoneCountEl(){ const z=document.createElement('small'); z.className='fine zcount'; z.id='zoneCount'; z.hidden=true; setTimeout(zoneCountShow,0); return z; }
 let searchSeq=0, searchTimer=null;
 async function runSearch(q){
   const res=$('destRes'), seq=++searchSeq;
@@ -1036,6 +1038,7 @@ function onGeoErr(e){ const g=$('cGps'); g.textContent='GPS : '+(e.code===1?'ref
    Radars : OpenStreetMap (highway=speed_camera). Les zones sont tenues en distance parcourue (odomètre),
    on lève le pied avant l'entrée de zone si l'on roule au-dessus de la limite. */
 const ZONES={on:true}; try{ if(localStorage.getItem('pl-zones')==='0') ZONES.on=false; }catch(e){}
+function zoneLen(max,hw){ return /^motorway/.test(hw||'')||(max&&max>=110)?4000:(max&&max<=50)?300:2000; }
 function zoneFrac(id){ const x=Math.sin(id*12.9898)*43758.5453; return 0.25+0.5*(x-Math.floor(x)); } // place du radar dans la zone : fixe mais non révélée
 function nearOnPath(pts,x,y){ let best={d:0,off:Infinity};
   for(let k=1;k<pts.length;k++){ const a=pts[k-1], b=pts[k], sx=b[0]-a[0], sy=b[1]-a[1], L2=sx*sx+sy*sy; if(L2<1e-6) continue;
@@ -1049,7 +1052,7 @@ function zonesStep(P){
     if(S.zones.has(c.id)||Math.hypot(c.x-x0,c.y-y0)>P.len+30) continue;
     const n=nearOnPath(P.pts,c.x,c.y); if(n.off>18||n.d<3) continue;
     const m=match(c.x,c.y,null), hw=m?m.w.hw:'', max=c.max||(m&&m.w.max)||S.limit||null;
-    const L=/^motorway/.test(hw)?4000:(max&&max<=50)?300:2000, f=zoneFrac(c.id);
+    const L=zoneLen(max,hw), f=zoneFrac(c.id);
     S.zones.set(c.id,{id:c.id,start:S.odo+n.d-L*f,end:S.odo+n.d+L*(1-f),max,L});
     logLine(`Zone de contrôle repérée (${fmtD(L)}, limite ${max||'?'} km/h)`); }
   for(const [k,z] of S.zones) if(z.end<S.odo-200) S.zones.delete(k);
@@ -1064,7 +1067,45 @@ function zoneShow(){ const z=zoneNow(), el=$('zoneChip');
   if(S.zoneIn!==z.id){ S.zoneIn=z.id; logLine(`Entrée en zone de contrôle (limite ${z.max||'?'} km/h)`); beep(660,1); say(z.max?`Zone de contrôle. Limitation à ${z.max}.`:'Zone de contrôle.'); }
   const t=`Zone de contrôle${z.max?` · ${z.max} km/h`:''} · encore ${fmtD(z.end-S.odo)}`; if($('zoneTxt').textContent!==t) $('zoneTxt').textContent=t;
   el.classList.toggle('over',!!z.max&&(S.vS??S.v)*KMH>z.max+2); el.hidden=false; }
-$('bZones').onclick=()=>{ ZONES.on=!ZONES.on; try{ localStorage.setItem('pl-zones',ZONES.on?'1':'0'); }catch(e){} $('bZones').setAttribute('aria-checked',String(ZONES.on)); };
+$('bZones').onclick=()=>{ ZONES.on=!ZONES.on; try{ localStorage.setItem('pl-zones',ZONES.on?'1':'0'); }catch(e){} $('bZones').setAttribute('aria-checked',String(ZONES.on)); rzDraw(); };
+// Zones sur la carte, tout le long de l'itinéraire (aperçu et trajet) : radars fixes demandés à OpenStreetMap
+// dans le rectangle du trajet, gardés s'ils sont à moins de 20 m du tracé ; seule la zone est dessinée, jamais le radar.
+const RZ={key:'',zones:[],C:null,cum:null};
+function llDist(a,b){ const kx=111320*Math.cos(a[1]*Math.PI/180); return Math.hypot((b[0]-a[0])*kx,(b[1]-a[1])*110540); }
+function llSlice(C,cum,a,b){ const out=[], at=s=>{ let i=1; while(i<cum.length-1&&cum[i]<s) i++; const f=clamp((s-cum[i-1])/Math.max(1e-6,cum[i]-cum[i-1]),0,1); return [C[i-1][0]+(C[i][0]-C[i-1][0])*f,C[i-1][1]+(C[i][1]-C[i-1][1])*f]; };
+  out.push(at(a)); for(let i=0;i<C.length;i++) if(cum[i]>a&&cum[i]<b) out.push(C[i]); out.push(at(b)); return out; }
+async function routeZones(P){
+  if(!P||!P.coords||P.coords.length<2){ RZ.key=''; RZ.zones=[]; rzDraw(); return; }
+  const C=P.coords, key=`${C.length}|${C[0]}|${C[C.length-1]}|${Math.round(P.distance||0)}`;
+  if(RZ.key===key){ rzDraw(); return; } RZ.key=key; RZ.zones=[]; RZ.ready=false; rzDraw();
+  let so=90,we=180,no=-90,ea=-180; for(const c of C){ so=Math.min(so,c[1]); no=Math.max(no,c[1]); we=Math.min(we,c[0]); ea=Math.max(ea,c[0]); }
+  const q=`[out:json][timeout:25];node[highway=speed_camera](${(so-0.005).toFixed(4)},${(we-0.005).toFixed(4)},${(no+0.005).toFixed(4)},${(ea+0.005).toFixed(4)});out;`;
+  let js=null; for(const ep of EPS){ try{ const r=await fetch(ep+'?data='+encodeURIComponent(q),{signal:tmo(25000)}); if(r.ok){ js=await r.json(); break; } }catch(e){} if(RZ.key!==key) return; }
+  if(RZ.key!==key||!js) return;
+  const cum=[0]; for(let i=1;i<C.length;i++) cum.push(cum[i-1]+llDist(C[i-1],C[i]));
+  const zs=[];
+  for(const el of js.elements||[]){ if(el.lat==null||el.lon==null) continue;
+    const kx=111320*Math.cos(el.lat*Math.PI/180), ky=110540; let best={d:Infinity,s:0};
+    for(let i=1;i<C.length;i++){ const a=C[i-1], b=C[i];
+      if(Math.min(a[1],b[1])>el.lat+0.001||Math.max(a[1],b[1])<el.lat-0.001||Math.min(a[0],b[0])>el.lon+0.0015||Math.max(a[0],b[0])<el.lon-0.0015) continue;
+      const ax=(a[0]-el.lon)*kx, ay=(a[1]-el.lat)*ky, sx=(b[0]-a[0])*kx, sy=(b[1]-a[1])*ky, L2=sx*sx+sy*sy; if(L2<1e-6) continue;
+      const t=clamp(-(ax*sx+ay*sy)/L2,0,1), d=Math.hypot(ax+t*sx,ay+t*sy); if(d<best.d) best={d,s:cum[i-1]+t*Math.sqrt(L2)}; }
+    if(best.d>20) continue;
+    const max=parseMax(el.tags||{}), L=zoneLen(max,''), f=zoneFrac(el.id);
+    zs.push({a:Math.max(0,best.s-L*f),b:Math.min(cum[cum.length-1],best.s+L*(1-f)),max}); }
+  zs.sort((x,y)=>x.a-y.a); const merged=[]; for(const z of zs){ const l=merged[merged.length-1]; if(l&&z.a<=l.b) l.b=Math.max(l.b,z.b); else merged.push({...z}); }
+  Object.assign(RZ,{zones:merged,C,cum,ready:true}); rzDraw(); zoneCountShow();
+  logLine(`Zones de contrôle sur l’itinéraire : ${merged.length}`); }
+function zoneCountShow(){ const el=$('zoneCount'); if(!el) return; const n=RZ.zones.length;
+  el.hidden=!RZ.ready||!ZONES.on; el.textContent=n?`${n} zone${n>1?'s':''} de contrôle sur le trajet (en rouge sur la carte)`:'Aucune zone de contrôle connue sur le trajet'; }
+function rzDraw(){ if(!GL||!MAP) return; const feats=[];
+  if(ZONES.on&&RZ.C){ for(const z of RZ.zones) feats.push({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:llSlice(RZ.C,RZ.cum,z.a,z.b)}}); }
+  try{ MAP.getSource('rzones').setData({type:'FeatureCollection',features:feats}); }catch(e){} zoneCountShow(); }
+// sans itinéraire, en roulant : les zones repérées devant, dessinées sur le tracé
+function rzDrive(P){ if(!GL||!MAP||S.route||!ZONES.on) return; const feats=[];
+  for(const z of S.zones.values()){ const a=Math.max(0,z.start-S.odo), b=Math.min(P.len,z.end-S.odo); if(b-a<5) continue;
+    const cuts=[a,...P.pts.map(q=>q[2]).filter(d=>d>a&&d<b),b]; feats.push({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:cuts.map(d=>{ const q=pointAt(P.pts,d); return llOf(q[0],q[1]); })}}); }
+  try{ MAP.getSource('rzones').setData({type:'FeatureCollection',features:feats}); }catch(e){} }
 $('bZones').setAttribute('aria-checked',String(ZONES.on));
 
 /* ===== Dénivelé =====
@@ -1464,7 +1505,7 @@ function mapPaint(P){ if(!GL||!MAP) return;
   for(const l of MAP.getStyle().layers||[]){ const id=l.id;
     if(l.type==='background') set(id,'background-color',p.bg);
     else if(l.type==='fill') set(id,'fill-color',/water/i.test(id)?p.water:/park|wood|grass|landcover|forest|green/i.test(id)?p.park:p.fill);
-    else if(l.type==='line'&&!['route','route-case','ahead'].includes(id)){
+    else if(l.type==='line'&&!['route','route-case','ahead','rzones'].includes(id)){
       if(/water|river|stream/i.test(id)) set(id,'line-color',p.water);
       else if(/casing|case/i.test(id)) set(id,'line-color',p.casing);
       else if(/road|street|highway|motorway|trunk|primary|secondary|tertiary|minor|service|track|path|bridge|tunnel/i.test(id)) set(id,'line-color',p.road);
@@ -1594,6 +1635,8 @@ function initMap(){
       MAP.addSource('route',{type:'geojson',data:EMPTY});
       MAP.addLayer({id:'route-case',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#0D4A73','line-opacity':.35,'line-width':['interpolate',['linear'],['zoom'],10,6,17,20]}});
       MAP.addLayer({id:'route',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#2A8FD6','line-width':['interpolate',['linear'],['zoom'],10,3.5,17,13]}});
+      MAP.addSource('rzones',{type:'geojson',data:EMPTY});
+      MAP.addLayer({id:'rzones',type:'line',source:'rzones',layout:{'line-cap':'butt','line-join':'round'},paint:{'line-color':'#FF4D4F','line-opacity':.55,'line-width':['interpolate',['linear'],['zoom'],8,6,12,9,17,24]}});
       MAP.addSource('ahead',{type:'geojson',data:EMPTY});
       MAP.addLayer({id:'ahead',type:'line',source:'ahead',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],13,5,18,16],'line-color':['match',['get','c'],1,'#E58A10',2,'#D3433A','#24965C']}});
       GL=true; $('cv').hidden=true; mapTheme(!!NIGHT.dark); try{ document.querySelectorAll('.maplibregl-ctrl-attrib').forEach(a=>a.classList.remove('maplibregl-compact-show')); }catch(e){}
@@ -1611,6 +1654,7 @@ async function glHome(){
   try{ const p=await getPos(); if(!homeMk) homeMk=new maplibregl.Marker({element:carEl()}); homeMk.setLngLat([p.lon,p.lat]).addTo(MAP); if(!PLAN&&!S.running) MAP.easeTo({center:[p.lon,p.lat],zoom:14.5,duration:800}); }catch(e){}
 }
 function glSetRoute(P,fit){
+  routeZones(P);
   if(!GL) return;
   const coords=P?P.coords:[];
   try{ MAP.getSource('route').setData(P?{type:'Feature',geometry:{type:'LineString',coordinates:coords},properties:{}}:EMPTY); }catch(e){}
@@ -1668,6 +1712,7 @@ function drawGL(g,adv,dtR,ts){
     line.push(pt); prev=s; }
   if(line.length>1) feats.push({type:'Feature',properties:{c:cur??0},geometry:{type:'LineString',coordinates:line}});
   MAP.getSource('ahead').setData({type:'FeatureCollection',features:feats});
+  rzDrive(P);
   // panneaux
   const seen=new Set();
   for(const e of S.ev){ const dn=e.d-adv; if(dn<-3||dn>900) continue; seen.add(e.key);
