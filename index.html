@@ -54,18 +54,26 @@
   --shadow:0 6px 22px rgba(0,0,0,.5);
   color-scheme:dark;
 }
-/* style « Moderne » (par défaut) : sombre, net, accents lumineux ; il reste sombre de jour comme de nuit */
+/* style « Moderne » (par défaut) : net, accents vert et orange ; fond blanc le jour, noir la nuit (mode nuit) */
 :root[data-skin="moderne"]{
+  --bg:#F2F5F4; --surface:#FFFFFF; --ink:#0E1418; --muted:#5B6B74; --line:#DCE3E1; --accent:#0FA978; --route:#12B886;
+  --go:#12B886; --lift:#F08C00; --brake:#E5484D; --go-strong:#0FA978;
+  --cue-go:#FFFFFF; --cue-lift:#FF9F43; --cue-brake:#FF5A5F; --cue-wait:#FFFFFF; --on-cue:#0E1418;
+  --ground:#F2F5F4; --road:#FFFFFF; --road-edge:#C9D2CF; --minor:#F8FAF9; --travel:#9AA8A3;
+  --shadow:0 8px 24px rgba(14,20,24,.14);
+  --f-display:"Manrope",system-ui,sans-serif; --f-body:"Manrope",system-ui,sans-serif;
+  color-scheme:light;
+}
+:root[data-skin="moderne"][data-theme="dark"]{
   --bg:#0E1418; --surface:#172129; --ink:#E8F0EC; --muted:#8FA3AE; --line:#26343E; --accent:#4BE3A4; --route:#4BE3A4;
   --go:#4BE3A4; --lift:#FF9F43; --brake:#FF5A5F; --go-strong:#2FCB8C;
   --cue-go:#172129; --cue-lift:#FF9F43; --cue-brake:#FF5A5F; --cue-wait:#172129; --on-cue:#0E1418;
   --ground:#0E1418; --road:#22303A; --road-edge:#0B1014; --minor:#1A252D; --travel:#3A4A55;
   --shadow:0 10px 30px rgba(0,0,0,.45);
-  --f-display:"Manrope",system-ui,sans-serif; --f-body:"Manrope",system-ui,sans-serif;
   color-scheme:dark;
 }
-:root[data-skin="moderne"] :is(.cue,.search,.menub,.spdc,.kitty,.nextp,.dres,.chip){box-shadow:inset 0 0 0 1px var(--line),var(--shadow)}
-:root[data-skin="moderne"] :is(.sheet,.botbar){box-shadow:inset 0 1px 0 var(--line),0 -10px 30px rgba(0,0,0,.4)}
+:root[data-skin="moderne"] :is(.cue,.search,.menub,.spdc,.kitty,.nextp,.dres,.chip,.botbar .eta,.botbar .round,.zoomb .round,.fuelb){box-shadow:inset 0 0 0 1px var(--line),var(--shadow)}
+:root[data-skin="moderne"] .sheet{box-shadow:inset 0 1px 0 var(--line),0 -10px 30px rgba(0,0,0,.18)}
 :root[data-skin="moderne"] .cue{border-radius:24px}
 :root[data-skin="moderne"] :is(.cue.go,.cue.wait){color:var(--ink)}
 :root[data-skin="moderne"] .cue.go svg{color:var(--go)}
@@ -262,17 +270,17 @@ details.mrow ul{margin:10px 0 2px;padding-left:18px;display:flex;flex-direction:
 .botbar{background:none;box-shadow:none;border-radius:0;align-items:flex-end;gap:10px;padding:0 max(16px,var(--sa-right)) calc(28px + var(--sa-bottom)) max(16px,var(--sa-left));pointer-events:none}
 .botbar>*{pointer-events:auto}
 .botbar .speedo{position:static;flex:none}
-.botbar .eta{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:8px 10px;align-self:center}
-.botbar .eta b{font-size:22px}
-.botbar .eta span{font-size:13px}
+.botbar .eta{position:absolute;left:max(16px,var(--sa-left));bottom:calc(var(--sa-bottom) + 124px);display:flex;flex-direction:column;justify-content:center;gap:2px;height:52px;padding:0 16px;text-align:left;white-space:nowrap;max-width:calc(100% - 200px);background:var(--surface);border-radius:26px;box-shadow:var(--shadow)}
+.botbar .eta b{font-size:20px}
+.botbar .eta span{font-size:13px;overflow:hidden;text-overflow:ellipsis}
 .botbar .round.stop{width:60px;height:60px;background:var(--surface);color:var(--brake);box-shadow:var(--shadow)}
-.kitty{position:absolute;right:max(16px,var(--sa-right));bottom:calc(var(--sa-bottom) + 100px);display:flex;align-items:center;gap:8px;height:48px;padding:0 16px 0 12px;border-radius:24px;background:var(--surface);box-shadow:var(--shadow);color:var(--go-strong);transition:transform .15s;transform-origin:right center}
+.kitty{position:absolute;right:max(16px,var(--sa-right));bottom:calc(var(--sa-bottom) + 124px);display:flex;align-items:center;gap:8px;height:52px;padding:0 16px 0 12px;border-radius:24px;background:var(--surface);box-shadow:var(--shadow);color:var(--go-strong);transition:transform .15s;transform-origin:right center}
 .kitty svg{width:26px;height:26px;flex:none}
 #drive:has(#toast:not([hidden])) .kitty{visibility:hidden} /* le « Bien joué » prend la place de la cagnotte */
 .kitty b{font:700 22px var(--f-display);color:var(--ink);font-variant-numeric:tabular-nums}
 .kitty.bump{transform:scale(1.12)}
 .botbar .round.mute{width:60px;height:60px;margin-left:auto;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
-.botbar .eta:not([hidden])~.round.mute{margin-left:0}
+
 .round.mute[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
 .round.mute .off{display:none}
 .round.mute[aria-pressed="true"] .on{display:none}
@@ -305,7 +313,7 @@ details.more summary::-webkit-details-marker{display:none}
 details.more[open]>*:not(summary){margin-bottom:12px}
 details.more p{font-size:14px}
 /* ---- côté fun : bravo en direct, note, euros, badges ---- */
-.toast{position:absolute;right:max(16px,var(--sa-right));bottom:calc(var(--sa-bottom) + 100px);z-index:2;height:48px;background:var(--go-strong);color:#fff;border-radius:24px;padding:0 18px;display:flex;gap:10px;align-items:center;box-shadow:var(--shadow);font:700 20px var(--f-display);white-space:nowrap;animation:toastIn .25s ease-out;transform-origin:right center}
+.toast{position:absolute;right:max(16px,var(--sa-right));bottom:calc(var(--sa-bottom) + 124px);z-index:2;height:52px;background:var(--go-strong);color:#fff;border-radius:24px;padding:0 18px;display:flex;gap:10px;align-items:center;box-shadow:var(--shadow);font:700 20px var(--f-display);white-space:nowrap;animation:toastIn .25s ease-out;transform-origin:right center}
 .toast span{font-size:22px}
 @keyframes toastIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
 .goal{display:flex;flex-direction:column;gap:6px}
@@ -333,7 +341,7 @@ details.more p{font-size:14px}
 /* zoom pendant la conduite, bouton stations-service */
 .zoomb{position:fixed;right:max(16px,var(--sa-right));top:42%;display:flex;flex-direction:column;gap:8px}
 .zoomb .round,.fuelb{width:52px;height:52px;background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
-.fuelb{position:fixed;right:max(16px,var(--sa-right));bottom:calc(var(--sa-bottom) + 160px)}
+.fuelb{position:fixed;right:max(16px,var(--sa-right));bottom:calc(var(--sa-bottom) + 190px)}
 .fuelb svg{width:26px;height:26px}
 .fuelsheet{position:fixed;z-index:7;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;background:var(--surface);color:var(--ink);border-radius:22px 22px 0 0;box-shadow:0 -6px 24px rgba(10,20,15,.25);padding:14px max(16px,var(--sa-right)) calc(16px + var(--sa-bottom)) max(16px,var(--sa-left));display:flex;flex-direction:column;gap:10px;max-height:72vh;overflow:auto}
 .fhead{display:flex;align-items:center;justify-content:space-between}
@@ -731,8 +739,9 @@ function initRoute(P){
   const pts=P.coords.map(([lo,la])=>toXY(la,lo)), cum=[0];
   for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
   const grid=new Map();
-  for(let i=0;i<pts.length-1;i++){ const [x1,y1]=pts[i],[x2,y2]=pts[i+1];
-    for(let gx=Math.floor(Math.min(x1,x2)/CELL);gx<=Math.floor(Math.max(x1,x2)/CELL);gx++) for(let gy=Math.floor(Math.min(y1,y2)/CELL);gy<=Math.floor(Math.max(y1,y2)/CELL);gy++){ const k=gx+','+gy; let a=grid.get(k); if(!a) grid.set(k,a=[]); a.push(i); } }
+  // cases traversées par chaque segment (on suit le segment, et non tout le rectangle qui l'entoure : un long segment droit restait énorme)
+  for(let i=0;i<pts.length-1;i++){ const [x1,y1]=pts[i],[x2,y2]=pts[i+1], n=Math.max(1,Math.ceil(Math.hypot(x2-x1,y2-y1)/(CELL/3)));
+    let last=''; for(let j=0;j<=n;j++){ const f=j/n, k=Math.floor((x1+(x2-x1)*f)/CELL)+','+Math.floor((y1+(y2-y1)*f)/CELL); if(k===last) continue; last=k; let a=grid.get(k); if(!a) grid.set(k,a=[]); if(a[a.length-1]!==i) a.push(i); } }
   S.route={pts,cum,len:cum[cum.length-1],grid,dest:toXY(P.dest.lat,P.dest.lon),duration:P.duration,s:0};
   glSetRoute(P);
 }
@@ -753,6 +762,7 @@ async function reroute(lat,lon){
   catch(e){ logLine(`Recalcul impossible (${e.message||e})`); }
   S.rerouting=false;
 }
+const fmtDur=sec=>{ const m=Math.max(1,Math.round(sec/60)); if(m<60) return `${m} min`; const h=Math.floor(m/60), r=m%60; return r?`${h} h ${String(r).padStart(2,'0')} min`:`${h} h`; };
 const hm=t=>{ const d=new Date(t); return `${d.getHours()}h${String(d.getMinutes()).padStart(2,'0')}`; };
 function shortName(r){ const a=r.address||{}; const main=r.name||(r.display_name||'').split(',')[0]; const city=a.city||a.town||a.village||a.municipality||''; return {main, sub:(r.display_name||'').split(',').slice(1,4).join(',').trim(), city}; }
 let ROUTE_MODE='rapide'; try{ if(localStorage.getItem('pl-route')==='court') ROUTE_MODE='court'; }catch(e){}
@@ -762,19 +772,19 @@ function renderPlan(){
   const box=$('destInfo'); box.textContent=''; box.hidden=!PLAN; $('bReal').textContent=PLAN?'C’est parti':'Rouler'; glSetRoute(PLAN,true); if(!PLAN) return;
   const b=document.createElement('b'); b.textContent=PLAN.dest.name;
   const x=document.createElement('button'); x.className='tbtn'; x.type='button'; x.textContent='Retirer'; x.onclick=()=>{ PLAN=null; renderPlan(); };
-  const o=PLAN.opts, line=r=>`${Math.max(1,Math.round(r.duration/60))} min · ${nf(r.distance/1000,1)} km · ≈ ${nf(routeLitres(r)*PRICE,2)} €`;
+  const o=PLAN.opts, line=r=>`${fmtDur(r.duration)} · ${nf(r.distance/1000,1)} km · ≈ ${nf(routeLitres(r)*PRICE,2)} €`;
   if(o&&o.short){
     const box2=document.createElement('div'); box2.className='ropts';
     for(const [mode,r,t] of [['rapide',o.fast,'Le plus rapide'],['court',o.short,'Le plus court']]){
       const bt=document.createElement('button'); bt.type='button'; bt.className='ropt'; bt.setAttribute('aria-pressed',String(PLAN.mode===mode));
-      const k=document.createElement('b'); k.textContent=t; const d=document.createElement('span'); d.textContent=`${Math.max(1,Math.round(r.duration/60))} min · ${nf(r.distance/1000,1)} km`;
+      const k=document.createElement('b'); k.textContent=t; const d=document.createElement('span'); d.textContent=`${fmtDur(r.duration)} · ${nf(r.distance/1000,1)} km`;
       const c=document.createElement('small'); c.textContent=`≈ ${nf(routeLitres(r)*PRICE,2)} € de carburant`;
       bt.append(k,d,c); bt.onclick=()=>{ ROUTE_MODE=mode; try{ localStorage.setItem('pl-route',mode); }catch(e){} planPick(mode); renderPlan(); };
       box2.append(bt); }
     const n=document.createElement('small'); n.className='fine'; n.textContent='Sans trafic. Carburant estimé au prix moyen.';
     box.append(b,x,box2,n);
   } else {
-    const sp=document.createElement('span'); sp.textContent=o?`${line(PLAN)} · le plus rapide est aussi le plus court`:`${nf(PLAN.distance/1000,1)} km · environ ${Math.max(1,Math.round(PLAN.duration/60))} min (sans trafic)`;
+    const sp=document.createElement('span'); sp.textContent=o?`${line(PLAN)} · le plus rapide est aussi le plus court`:`${nf(PLAN.distance/1000,1)} km · environ ${fmtDur(PLAN.duration)} (sans trafic)`;
     box.append(b,sp,x); }
 }
 let searchSeq=0, searchTimer=null;
@@ -983,7 +993,7 @@ function onFixCore(p){
     if(S.onRoute){ S.route.s=rn.s; S.offCnt=0; } else if(++S.offCnt>=4&&!S.arrived&&now-(S.lastRer||0)>30000){ const ll=toLL(xy[0],xy[1]); reroute(ll[0],ll[1]); }
     const rem=Math.max(0,S.route.len-S.route.s);
     if(rem<40&&!S.arrived){ S.arrived=true; logLine('Arrivée à destination'); beep(660,2); say(voiceTxt('arrive')); }
-    const left=S.route.duration*rem/S.route.len; $('hEtaT').textContent=S.arrived?'Arrivé':hm(Date.now()+left*1000); $('hEtaI').textContent=S.arrived?'à destination':`${Math.max(1,Math.round(left/60))} min · ${nf(rem/1000,1)} km`; }
+    const left=S.route.duration*rem/S.route.len; $('hEtaT').textContent=S.arrived?'Arrivé':hm(Date.now()+left*1000); $('hEtaI').textContent=S.arrived?'à destination':`${fmtDur(left)} · ${nf(rem/1000,1)} km`; }
   const P=buildPath(m,S.mode==='sim'); elProfile(P); S.grade=gradeAt(P,0);
   for(const e of P.ev){ const q=pointAt(P.pts,e.d); e.wx=q[0]; e.wy=q[1];
     const old=S.ev.find(o=>o.type===e.type&&o.wx!=null&&Math.hypot(o.wx-e.wx,o.wy-e.wy)<35); if(old) e.key=old.key; }
@@ -1380,13 +1390,14 @@ setInterval(()=>{ if(S.ref){ try{ localStorage.setItem('pl-lastpos',JSON.stringi
 const MAP_DAY=new Map();
 // Palettes de carte : la nuit, et les styles au choix (null = couleurs d'origine)
 const MAP_PALS={
+  moderneJour:{bg:'#F2F5F4',water:'#D3E3EC',park:'#E1EEE5',fill:'#ECF0EE',road:'#FFFFFF',casing:'#D3DBD8',other:'#E2E7E5',text:'#5B6B74',halo:'#FFFFFF'},
   moderne:{bg:'#0E1418',water:'#0F202B',park:'#11201B',fill:'#121A20',road:'#22303A',casing:'#0B1014',other:'#1C2830',text:'#8FA3AE',halo:'#0E1418'},
   nuit:{bg:'#111716',water:'#0E2230',park:'#14211A',fill:'#161D1C',road:'#3B4745',casing:'#0A0E0D',other:'#2A3331',text:'#C9D3CF',halo:'#0E1312'},
   epure:{bg:'#F4F4F2',water:'#DCE3E8',park:'#E7EDE4',fill:'#EFEFEC',road:'#FFFFFF',casing:'#D6D6D1',other:'#E3E3DF',text:'#6B6B66',halo:'#FFFFFF'},
   vintage:{bg:'#F1E7D0',water:'#B9D2CF',park:'#D8DDB5',fill:'#EADFC4',road:'#FFF8E8',casing:'#C9B48A',other:'#DCCFAF',text:'#5B4A2E',halo:'#F1E7D0'},
   fjord:{bg:'#1E2A35',water:'#16212B',park:'#22323A',fill:'#243240',road:'#3E5263',casing:'#121A21',other:'#2C3C4A',text:'#B9C7D3',halo:'#1E2A35'}};
 let MAP_CHOICE='classique'; try{ const m=localStorage.getItem('pl-map'); if(m) MAP_CHOICE=m; }catch(e){}
-function mapTheme(dark){ mapPaint(SKIN==='moderne'&&MAP_CHOICE==='classique'?MAP_PALS.moderne:dark?MAP_PALS.nuit:(MAP_PALS[MAP_CHOICE]||null)); mapRouteColors(); }
+function mapTheme(dark){ mapPaint(SKIN==='moderne'&&MAP_CHOICE==='classique'?(dark?MAP_PALS.moderne:MAP_PALS.moderneJour):dark?MAP_PALS.nuit:(MAP_PALS[MAP_CHOICE]||null)); mapRouteColors(); }
 // tracé : couleurs du style (vert = roulez, orange = pied levé, rouge = arrêt)
 function mapRouteColors(){ if(!GL||!MAP) return; try{ MAP.setPaintProperty('route','line-color',T.route||'#2A8FD6'); MAP.setPaintProperty('ahead','line-color',['match',['get','c'],1,T.lift||'#E58A10',2,T.brake||'#D3433A',T.go||'#24965C']); }catch(e){} }
 function mapPaint(P){ if(!GL||!MAP) return;
@@ -1527,7 +1538,7 @@ function initMap(){
       MAP.addLayer({id:'route',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#2A8FD6','line-width':['interpolate',['linear'],['zoom'],10,3.5,17,13]}});
       MAP.addSource('ahead',{type:'geojson',data:EMPTY});
       MAP.addLayer({id:'ahead',type:'line',source:'ahead',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],13,5,18,16],'line-color':['match',['get','c'],1,'#E58A10',2,'#D3433A','#24965C']}});
-      GL=true; $('cv').hidden=true; mapTheme(!!NIGHT.dark);
+      GL=true; $('cv').hidden=true; mapTheme(!!NIGHT.dark); try{ document.querySelectorAll('.maplibregl-ctrl-attrib').forEach(a=>a.classList.remove('maplibregl-compact-show')); }catch(e){}
       if(S.running) glDrive(); else glHome();
     });
   }catch(e){ MAP=null; GL=false; }
@@ -1763,7 +1774,7 @@ function end(){
   $('eHard').textContent=L.hard; $('ePass').textContent=L.passes.length;
   const E=S.eco, l100=E.dist>500?E.fuel/E.dist*100000:null, pct=E.fuel+E.saved>0?E.saved/(E.fuel+E.saved)*100:0;
   $('eFuel').textContent=`${nf(E.fuel,2)} L`; $('eSaved').textContent=`${nf(E.saved,2)} L`;
-  $('eSub').textContent=`Trajet terminé · ${nf(L.dist/1000,1)} km · ${Math.max(1,Math.round(dur/60))} min${S.mode==='sim'?' · simulation':''}`;
+  $('eSub').textContent=`Trajet terminé · ${nf(L.dist/1000,1)} km · ${fmtDur(dur)}${S.mode==='sim'?' · simulation':''}`;
   $('eFolN').textContent=L.cues?`${L.fol} sur ${L.cues}`:'–'; $('eFolBar').style.width=L.cues?`${Math.round(L.fol/L.cues*100)}%`:'0';
   $('eMsg').textContent=!L.cues?'Aucun conseil sur ce trajet.':L.hard===0?'Aucun freinage fort, bravo.':L.hard===1?'Un seul freinage fort.':`${L.hard} freinages forts : levez le pied un peu plus tôt.`;
   funEnd(L,E,dur);
