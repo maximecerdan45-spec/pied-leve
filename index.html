@@ -725,13 +725,24 @@ const tmo=ms=>{ if(window.AbortSignal&&AbortSignal.timeout) return AbortSignal.t
 function polyDecode(str,prec){ const f=Math.pow(10,prec), out=[]; let i=0,lat=0,lon=0;
   while(i<str.length){ for(let k=0;k<2;k++){ let b,sh=0,r=0; do{ b=str.charCodeAt(i++)-63; r|=(b&0x1f)<<sh; sh+=5; }while(b>=0x20&&i<=str.length); const d=(r&1)?~(r>>1):(r>>1); if(k===0) lat+=d; else lon+=d; } out.push([lon/f,lat/f]); }
   return out; }
+// Durée réaliste : le serveur OSRM public compte 80 % de la vitesse limite partout, ce qui rallonge beaucoup
+// les routes rapides (2×2 voies à 110 comptées à 88 km/h ; Waze, qui connaît les vitesses réelles, est bien plus court).
+// Hors agglomération (tronçons à 60 km/h et plus pour OSRM), on compte 95 % de la limite ; en ville, on garde OSRM
+// (carrefours, feux, ralentissements). Sans limite connue, on retire seulement la réduction de 80 %.
+function osrmTime(rt){ let t=0, ok=false;
+  for(const lg of rt.legs||[]){ const A=lg.annotation; if(!A||!A.distance||!A.duration){ t+=lg.duration||0; continue; } ok=true;
+    for(let i=0;i<A.distance.length;i++){ const d=A.distance[i], du=A.duration[i]; if(!(du>0)){ continue; }
+      const v=d/du*3.6, ms=A.maxspeed&&A.maxspeed[i]; let real=du;
+      if(v>=60){ const lim=ms&&ms.speed?(ms.unit==='mph'?ms.speed*1.609:ms.speed):Math.min(130,v/0.8); real=Math.min(du,d/(Math.min(lim,130)*0.95/3.6)); }
+      t+=real; } }
+  return ok&&t>0?t:rt.duration; }
 async function routeOSRM(from,to,alt){
-  const q=`${from.lon.toFixed(6)},${from.lat.toFixed(6)};${to.lon.toFixed(6)},${to.lat.toFixed(6)}?overview=full&geometries=geojson&alternatives=${alt?3:'false'}&steps=false`;
+  const q=`${from.lon.toFixed(6)},${from.lat.toFixed(6)};${to.lon.toFixed(6)},${to.lat.toFixed(6)}?overview=full&geometries=geojson&alternatives=${alt?3:'false'}&steps=false&annotations=distance,duration,maxspeed`;
   let last=null;
   for(const base of ['https://router.project-osrm.org/route/v1/driving/','https://routing.openstreetmap.de/routed-car/route/v1/driving/']){
     try{ const r=await fetch(base+q,{signal:tmo(12000)}); if(!r.ok) throw new Error('HTTP '+r.status);
       const js=await r.json(); if(js.code!=='Ok'||!js.routes||!js.routes.length) throw new Error(js.code||'aucun itinéraire');
-      return js.routes.map(rt=>({coords:rt.geometry.coordinates,distance:rt.distance,duration:rt.duration,src:'osrm'})); }
+      return js.routes.map(rt=>({coords:rt.geometry.coordinates,distance:rt.distance,duration:osrmTime(rt),osrm:rt.duration,src:'osrm'})); }
     catch(e){ last=e; } }
   throw last; }
 async function routeShortest(from,to){

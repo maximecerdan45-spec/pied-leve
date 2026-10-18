@@ -25,6 +25,7 @@ async function run(browser, port, opt) {
     const json = o => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
     if (u.includes('photon.komoot.io')) return json({ features: [{ geometry: { coordinates: [B.lon, B.lat] }, properties: { name: 'Leclerc', city: 'Orvault', osm_value: 'supermarket' } }] });
     if (u.includes('router.project-osrm.org')) { seen.push('osrm1' + (/alternatives=3/.test(u) ? '+alt' : '')); if (opt.osrmDown) return r.fulfill({ status: 502, body: '' });
+      if (opt.annot) return json({ code: 'Ok', routes: [{ geometry: { coordinates: line([-1.53, 47.25]) }, distance: 9800, duration: 840, legs: [{ duration: 840, annotation: { distance: [5000, 4800], duration: [225, 615], maxspeed: [{ speed: 110, unit: 'km/h' }, { speed: 50, unit: 'km/h' }] } }] }] });
       if (opt.same) return json({ code: 'Ok', routes: [{ geometry: { coordinates: line([-1.53, 47.25]) }, distance: 9800, duration: 840 }] });
       return json({ code: 'Ok', routes: [{ geometry: { coordinates: line([-1.53, 47.25]) }, distance: 9800, duration: 840 }, { geometry: { coordinates: line([-1.52, 47.24]) }, distance: 8900, duration: 900 }] }); }
     if (u.includes('routing.openstreetmap.de')) { seen.push('osrm2'); return json({ code: 'Ok', routes: [{ geometry: { coordinates: line([-1.53, 47.25]) }, distance: 9800, duration: 840 }] }); }
@@ -37,7 +38,7 @@ async function run(browser, port, opt) {
   await page.fill('#qDest', 'Leclerc Orvault'); await page.waitForSelector('#destRes button', { timeout: 5000 });
   await page.click('#destRes button'); await page.waitForTimeout(800);
   const out = { seen, text: await page.textContent('#destInfo'), opts: await page.$$eval('.ropt', b => b.map(x => [x.textContent, x.getAttribute('aria-pressed')])),
-    plan: await page.evaluate(() => { const P = window.__PL.PLAN; return P && { d: P.distance, mode: P.mode, n: P.coords.length, c1: P.coords[1] }; }) };
+    plan: await page.evaluate(() => { const P = window.__PL.PLAN; return P && { d: P.distance, mode: P.mode, n: P.coords.length, c1: P.coords[1], dur: P.duration }; }) };
   if (out.opts.length === 2) { await page.click('.ropt:nth-child(2)'); out.after = await page.evaluate(() => { const P = window.__PL.PLAN; return { d: P.distance, mode: P.mode, c1: P.coords[1] }; });
     out.pressed = await page.$$eval('.ropt', b => b.map(x => x.getAttribute('aria-pressed'))); out.saved = await page.evaluate(() => localStorage.getItem('pl-route')); }
   await page.close(); return out;
@@ -46,7 +47,7 @@ async function run(browser, port, opt) {
 (async () => {
   const srv = await serve(), port = srv.address().port, browser = await chromium.launch();
   let failed = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'ÉCHEC ') + msg); if (!ok) failed++; };
-  const a = await run(browser, port, {}), b = await run(browser, port, { osrmDown: true }), c = await run(browser, port, { same: true });
+  const a = await run(browser, port, {}), b = await run(browser, port, { osrmDown: true }), c = await run(browser, port, { same: true }), d = await run(browser, port, { same: true, annot: true });
   await browser.close(); srv.close();
   console.log('Choix proposés :', a.opts.map(o => o[0]).join(' | '));
   check(a.seen.includes('osrm1+alt') && a.seen.includes('valhalla+court'), `variantes OSRM et « plus court » Valhalla demandées (${a.seen.join(', ')})`);
@@ -57,6 +58,8 @@ async function run(browser, port, opt) {
   check(a.pressed && a.pressed.join() === 'false,true' && a.saved === 'court', 'le choix est retenu pour les prochains trajets');
   check(b.seen.includes('osrm2') && b.plan && b.plan.d > 0, `premier serveur en panne : le second prend le relais (${b.seen.join(', ')})`);
   check(c.opts.length === 0 && /le plus rapide est aussi le plus court/.test(c.text), `trajets identiques : un seul choix (« ${c.text.slice(0, 80)}… »)`);
+  // 5 km de 2×2 voies à 110 : OSRM compte 80 km/h (225 s) ; on compte 95 % de 110 = 104,5 km/h (172 s). En ville (50), durée OSRM gardée.
+  check(d.plan && Math.round(d.plan.dur) === Math.round(5000 / (110 * 0.95 / 3.6) + 615), `durée réaliste sur voie rapide : ${d.plan ? Math.round(d.plan.dur) : '?'} s au lieu de 840 s (OSRM)`);
   console.log(failed ? `${failed} vérification(s) en échec` : 'RÉUSSI : le plus rapide et le plus court sont proposés');
   process.exit(failed ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
