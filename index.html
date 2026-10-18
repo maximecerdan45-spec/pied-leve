@@ -745,32 +745,51 @@ async function routeOSRM(from,to,alt){
       return js.routes.map(rt=>({coords:rt.geometry.coordinates,distance:rt.distance,duration:osrmTime(rt),osrm:rt.duration,src:'osrm'})); }
     catch(e){ last=e; } }
   throw last; }
-async function routeShortest(from,to){
-  const q={locations:[{lat:+from.lat.toFixed(6),lon:+from.lon.toFixed(6)},{lat:+to.lat.toFixed(6),lon:+to.lon.toFixed(6)}],costing:'auto',costing_options:{auto:{shortest:true}},directions_options:{units:'kilometers'},directions_type:'none'};
+// Valhalla : le plus court (shortest) ou le plus rapide selon ses propres vitesses (classe de route + limites)
+async function routeValhalla(from,to,shortest){
+  const q={locations:[{lat:+from.lat.toFixed(6),lon:+from.lon.toFixed(6)},{lat:+to.lat.toFixed(6),lon:+to.lon.toFixed(6)}],costing:'auto',costing_options:{auto:{shortest:!!shortest}},directions_options:{units:'kilometers'},directions_type:'none'};
   const r=await fetch('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(q)),{signal:tmo(12000)});
   if(!r.ok) throw new Error('HTTP '+r.status);
   const js=await r.json(), tr=js.trip; if(!tr||!tr.legs||!tr.legs.length||!tr.summary) throw new Error('aucun itinéraire');
   const coords=[]; for(const l of tr.legs){ const c=polyDecode(l.shape||'',6); if(coords.length&&c.length) c.shift(); coords.push(...c); }
   if(coords.length<2) throw new Error('itinéraire vide');
-  return {coords,distance:tr.summary.length*1000,duration:tr.summary.time,src:'valhalla'}; }
+  return {coords,distance:tr.summary.length*1000,duration:tr.summary.time,src:shortest?'valhalla-court':'valhalla'}; }
+const routeShortest=(from,to)=>routeValhalla(from,to,true);
+// Même chronomètre pour tous : un trajet trouvé par Valhalla est re-chronométré par OSRM (points de passage tous les
+// ~10 km le long du tracé) puis corrigé comme les autres (osrmTime). Ainsi « le plus rapide » compare des durées comparables.
+async function routeRetime(r){
+  const C=r.coords, cum=[0]; for(let i=1;i<C.length;i++) cum.push(cum[i-1]+llDist(C[i-1],C[i]));
+  const n=Math.min(24,Math.max(1,Math.round(cum[cum.length-1]/10000))), wp=[C[0]]; let k=1;
+  for(let j=1;j<n;j++){ const d=cum[cum.length-1]*j/n; while(k<C.length-1&&cum[k]<d) k++; wp.push(C[k]); }
+  wp.push(C[C.length-1]);
+  const q=wp.map(c=>`${c[0].toFixed(6)},${c[1].toFixed(6)}`).join(';')+'?overview=false&steps=false&continue_straight=true&annotations=distance,duration,maxspeed';
+  for(const base of ['https://router.project-osrm.org/route/v1/driving/','https://routing.openstreetmap.de/routed-car/route/v1/driving/']){
+    try{ const res=await fetch(base+q,{signal:tmo(12000)}); if(!res.ok) throw new Error('HTTP '+res.status); const js=await res.json(); const rt=js.routes&&js.routes[0];
+      if(js.code!=='Ok'||!rt) throw new Error(js.code||'vide');
+      if(Math.abs(rt.distance-r.distance)>r.distance*0.04+300) return r; // OSRM n'a pas suivi le même chemin : on garde la durée Valhalla
+      return {...r,duration:osrmTime(rt),retimed:true}; }
+    catch(e){} }
+  return r; }
 // Carburant estimé pour un itinéraire (même modèle que pendant le trajet) : roulage à l'allure moyenne + 15 %,
 // moteur au ralenti, et les relances après les arrêts et ralentissements (environ tous les 250 m à 25 km/h de moyenne, tous les 3 km à 90 km/h)
 function routeLitres(r){ const v=Math.max(3,r.distance/Math.max(1,r.duration)), vc=v*1.15;
   const roll=(CRR*M*G+0.5*RHO*CDA*vc*vc)/(ETA*EF), gap=Math.max(200,5*v*v), starts=r.distance/gap*(0.5*M*vc*vc)/(ETA*EF);
   if(EV()){ const kwh=(r.distance*(CRR*M*G+0.5*RHO*CDA*vc*vc)+r.distance/gap*0.5*M*vc*vc*0.4)/(EVETA*3.6e6); return kwh*EVP/PRICE; } // relances : 60 % récupérés
   return r.distance*roll+r.duration*BASE+starts; }
+// Le plus rapide = la plus petite durée parmi toutes les propositions (variantes OSRM, plus rapide et plus court de Valhalla),
+// toutes chronométrées pareil ; le plus court = la plus petite distance.
 async function routeChoices(from,to){
-  const [o,v]=await Promise.allSettled([routeOSRM(from,to,true),routeShortest(from,to)]);
-  const osrm=o.status==='fulfilled'?o.value:[], all=[...osrm,...(v.status==='fulfilled'?[v.value]:[])];
-  if(!all.length) throw (o.reason||v.reason||new Error('réseau'));
-  let fast=(osrm.length?osrm:all).reduce((a,b)=>b.duration<a.duration?b:a), short=all.reduce((a,b)=>b.distance<a.distance?b:a);
-  if(short.duration<=fast.duration) fast=short; // plus court et pas plus lent : un seul choix
+  const [o,v,c]=await Promise.allSettled([routeOSRM(from,to,true),routeValhalla(from,to,false).then(routeRetime),routeValhalla(from,to,true).then(routeRetime)]);
+  const osrm=o.status==='fulfilled'?o.value:[], all=[...osrm,...[v,c].filter(x=>x.status==='fulfilled').map(x=>x.value)];
+  if(!all.length) throw (o.reason||v.reason||c.reason||new Error('réseau'));
+  let fast=all.reduce((a,b)=>b.duration<a.duration-1?b:a), short=all.reduce((a,b)=>b.distance<a.distance?b:a);
+  logLine(`Itinéraires comparés : ${all.map(r=>`${r.src} ${nf(r.distance/1000,1)} km ${fmtDur(r.duration)}`).join(' ; ')}`);
   if(short===fast||short.distance>fast.distance*0.98-50) short=null; // pratiquement le même trajet
   return {fast,short}; }
 // Recalcul en route : on garde le type d'itinéraire choisi
 async function routeFor(from,to,mode){
   if(mode==='court'){ try{ return await routeShortest(from,to); }catch(e){} }
-  try{ return (await routeOSRM(from,to,false))[0]; }catch(e){ if(mode!=='court') return await routeShortest(from,to); throw e; } }
+  try{ const o=await routeChoices(from,to); return o.fast; }catch(e){ if(mode!=='court') return await routeShortest(from,to); throw e; } }
 function initRoute(P){
   const pts=P.coords.map(([lo,la])=>toXY(la,lo)), cum=[0];
   for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
