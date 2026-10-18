@@ -24,12 +24,16 @@ async function run(browser, port, opt) {
     if (u.startsWith(`http://localhost:${port}`)) return r.continue();
     const json = o => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(o) });
     if (u.includes('photon.komoot.io')) return json({ features: [{ geometry: { coordinates: [B.lon, B.lat] }, properties: { name: 'Leclerc', city: 'Orvault', osm_value: 'supermarket' } }] });
+    if (u.includes('router.project-osrm.org') && !/alternatives=/.test(u)) { seen.push('chrono'); if (opt.osrmDown) return r.fulfill({ status: 502, body: '' }); // re-chronométrage d'un trajet Valhalla
+      return json({ code: 'Ok', routes: [opt.vfast ? { distance: 9500, duration: 700 } : { distance: 9800, duration: 840 }] }); }
     if (u.includes('router.project-osrm.org')) { seen.push('osrm1' + (/alternatives=3/.test(u) ? '+alt' : '')); if (opt.osrmDown) return r.fulfill({ status: 502, body: '' });
       if (opt.annot) return json({ code: 'Ok', routes: [{ geometry: { coordinates: line([-1.53, 47.25]) }, distance: 9800, duration: 840, legs: [{ duration: 840, annotation: { distance: [5000, 4800], duration: [225, 615], maxspeed: [{ speed: 110, unit: 'km/h' }, { speed: 50, unit: 'km/h' }] } }] }] });
       if (opt.same) return json({ code: 'Ok', routes: [{ geometry: { coordinates: line([-1.53, 47.25]) }, distance: 9800, duration: 840 }] });
       return json({ code: 'Ok', routes: [{ geometry: { coordinates: line([-1.53, 47.25]) }, distance: 9800, duration: 840 }, { geometry: { coordinates: line([-1.52, 47.24]) }, distance: 8900, duration: 900 }] }); }
+    if (u.includes('routing.openstreetmap.de') && !/alternatives=/.test(u)) return json({ code: 'Ok', routes: [{ distance: 9800, duration: 840 }] });
     if (u.includes('routing.openstreetmap.de')) { seen.push('osrm2'); return json({ code: 'Ok', routes: [{ geometry: { coordinates: line([-1.53, 47.25]) }, distance: 9800, duration: 840 }] }); }
     if (u.includes('valhalla1.openstreetmap.de')) { const q = JSON.parse(new URL(u).searchParams.get('json')); seen.push('valhalla' + (q.costing_options.auto.shortest ? '+court' : ''));
+      if (!q.costing_options.auto.shortest) return json(opt.vfast ? { trip: { legs: [{ shape: enc(line([-1.54, 47.24]), 6) }], summary: { length: 9.5, time: 600 } } } : { trip: { legs: [{ shape: enc(line([-1.53, 47.25]), 6) }], summary: { length: 9.8, time: 860 } } });
       if (opt.same) return json({ trip: { legs: [{ shape: enc(line([-1.53, 47.25]), 6) }], summary: { length: 9.75, time: 860 } } });
       return json({ trip: { legs: [{ shape: enc(line([-1.515, 47.235]), 6) }], summary: { length: 7.6, time: 1020 } } }); }
     return r.abort(); });
@@ -47,7 +51,7 @@ async function run(browser, port, opt) {
 (async () => {
   const srv = await serve(), port = srv.address().port, browser = await chromium.launch();
   let failed = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'ÉCHEC ') + msg); if (!ok) failed++; };
-  const a = await run(browser, port, {}), b = await run(browser, port, { osrmDown: true }), c = await run(browser, port, { same: true }), d = await run(browser, port, { same: true, annot: true });
+  const a = await run(browser, port, {}), b = await run(browser, port, { osrmDown: true }), c = await run(browser, port, { same: true }), d = await run(browser, port, { same: true, annot: true }), e = await run(browser, port, { vfast: true });
   await browser.close(); srv.close();
   console.log('Choix proposés :', a.opts.map(o => o[0]).join(' | '));
   check(a.seen.includes('osrm1+alt') && a.seen.includes('valhalla+court'), `variantes OSRM et « plus court » Valhalla demandées (${a.seen.join(', ')})`);
@@ -58,6 +62,8 @@ async function run(browser, port, opt) {
   check(a.pressed && a.pressed.join() === 'false,true' && a.saved === 'court', 'le choix est retenu pour les prochains trajets');
   check(b.seen.includes('osrm2') && b.plan && b.plan.d > 0, `premier serveur en panne : le second prend le relais (${b.seen.join(', ')})`);
   check(c.opts.length === 0 && /le plus rapide est aussi le plus court/.test(c.text), `trajets identiques : un seul choix (« ${c.text.slice(0, 80)}… »)`);
+  check(e.seen.includes('valhalla') && e.seen.includes('chrono') && e.plan && e.plan.d === 9500 && Math.round(e.plan.dur) === 700 && /12 min · 9,5 km/.test(e.opts[0] ? e.opts[0][0] : e.text),
+    `le plus rapide en temps : trajet Valhalla re-chronométré (12 min) préféré à OSRM (14 min) — ${e.opts.map(o => o[0].slice(0, 32)).join(' | ') || e.text.slice(0, 60)}`);
   // 5 km de 2×2 voies à 110 : OSRM compte 80 km/h (225 s) ; on compte 95 % de 110 = 104,5 km/h (172 s). En ville (50), durée OSRM gardée.
   check(d.plan && Math.round(d.plan.dur) === Math.round(5000 / (110 * 0.95 / 3.6) + 615), `durée réaliste sur voie rapide : ${d.plan ? Math.round(d.plan.dur) : '?'} s au lieu de 840 s (OSRM)`);
   console.log(failed ? `${failed} vérification(s) en échec` : 'RÉUSSI : le plus rapide et le plus court sont proposés');
