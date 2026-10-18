@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#1C5A72">
+<meta name="theme-color" content="#0E1418">
 <title>Pied Levé</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
@@ -11,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
 <style>
 /* Layout : carte plein écran ; accueil = barre de recherche flottante + feuille du bas ; conduite = bandeau de consigne en haut, compteur à gauche, barre d'arrivée en bas */
@@ -54,6 +54,43 @@
   --shadow:0 6px 22px rgba(0,0,0,.5);
   color-scheme:dark;
 }
+/* style « Moderne » (par défaut) : sombre, net, accents lumineux ; il reste sombre de jour comme de nuit */
+:root[data-skin="moderne"]{
+  --bg:#0E1418; --surface:#172129; --ink:#E8F0EC; --muted:#8FA3AE; --line:#26343E; --accent:#4BE3A4; --route:#4BE3A4;
+  --go:#4BE3A4; --lift:#FF9F43; --brake:#FF5A5F; --go-strong:#2FCB8C;
+  --cue-go:#172129; --cue-lift:#FF9F43; --cue-brake:#FF5A5F; --cue-wait:#172129; --on-cue:#0E1418;
+  --ground:#0E1418; --road:#22303A; --road-edge:#0B1014; --minor:#1A252D; --travel:#3A4A55;
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+  --f-display:"Manrope",system-ui,sans-serif; --f-body:"Manrope",system-ui,sans-serif;
+  color-scheme:dark;
+}
+:root[data-skin="moderne"] :is(.cue,.search,.menub,.spdc,.kitty,.nextp,.dres,.chip){box-shadow:inset 0 0 0 1px var(--line),var(--shadow)}
+:root[data-skin="moderne"] :is(.sheet,.botbar){box-shadow:inset 0 1px 0 var(--line),0 -10px 30px rgba(0,0,0,.4)}
+:root[data-skin="moderne"] .cue{border-radius:24px}
+:root[data-skin="moderne"] :is(.cue.go,.cue.wait){color:var(--ink)}
+:root[data-skin="moderne"] .cue.go svg{color:var(--go)}
+:root[data-skin="moderne"] .cue .t{font-weight:800;letter-spacing:-.01em}
+:root[data-skin="moderne"] .cue.prep .pb{background:linear-gradient(90deg,rgba(255,159,67,.10),rgba(255,159,67,.72));opacity:1;box-shadow:inset -3px 0 0 var(--lift)}
+:root[data-skin="moderne"] .cue.prep.near svg{color:var(--on-cue)}
+:root[data-skin="moderne"] :is(.btn.go,.toast){background:var(--go);color:#0E1418}
+:root[data-skin="moderne"] .btn{border-radius:18px;font-weight:800}
+:root[data-skin="moderne"] .btn:not(.go):not(.ghost){background:var(--ink);color:#0E1418}
+:root[data-skin="moderne"] .round.stop{background:var(--brake);color:#0E1418}
+:root[data-skin="moderne"] .search .round{background:var(--go);color:#0E1418}
+:root[data-skin="moderne"] .kitty{color:var(--go)}
+:root[data-skin="moderne"] .mk-lift{background:#FF9F43;color:#0E1418;border-radius:10px}
+:root[data-skin="moderne"] .mk-dest{background:#E8F0EC;color:#0E1418}
+:root[data-skin="moderne"] .car3d .halo{background:rgba(75,227,164,.18);border-color:rgba(75,227,164,.6)}
+/* choix d'itinéraire : le plus rapide / le plus court */
+.ropts{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:6px}
+.ropt{display:flex;flex-direction:column;gap:2px;text-align:left;border:0;border-radius:14px;padding:10px 12px;background:var(--bg);box-shadow:inset 0 0 0 1.5px var(--line);cursor:pointer;min-width:0}
+.ropt b{font-family:var(--f-display);font-size:16px}
+.ropt span{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ropt[aria-pressed="true"]{box-shadow:inset 0 0 0 2px var(--go)}
+.ropt[aria-pressed="true"] b{color:var(--go)}
+.dinfo .fine{grid-column:1/-1}
+.dinfo .ropts .ropt{grid-row:auto;grid-column:auto}
+.ropt small{font-size:13px;color:var(--ink);font-variant-numeric:tabular-nums}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--ground);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.4;overflow:hidden;overscroll-behavior:none}
 button{font:inherit;color:inherit}
@@ -575,7 +612,8 @@ function ingest(js){
     if(el.geometry.length!==el.nodes.length||el.geometry.some(g=>!g)) continue;
     const t=el.tags||{}, hw=t.highway, round=t.junction==='roundabout'||t.junction==='circular';
     let ow=0; if(['yes','1','true'].includes(t.oneway)) ow=1; else if(t.oneway==='-1'||t.oneway==='reverse') ow=-1; else if(t.oneway==='no') ow=0; else if(round||hw==='motorway'||hw==='motorway_link') ow=1;
-    S.ways.set(el.id,{id:el.id,nodes:el.nodes,pts:el.geometry.map(g=>toXY(g.lat,g.lon)),hw,round,ow,max:parseMax(t),closed:el.nodes[0]===el.nodes[el.nodes.length-1]});
+    const bt=(!!t.bridge&&t.bridge!=='no')||(!!t.tunnel&&t.tunnel!=='no')||t.covered==='yes';
+    S.ways.set(el.id,{id:el.id,nodes:el.nodes,pts:el.geometry.map(g=>toXY(g.lat,g.lon)),hw,round,ow,max:parseMax(t),bt,closed:el.nodes[0]===el.nodes[el.nodes.length-1]});
   }
   rebuild();
 }
@@ -649,12 +687,46 @@ async function geocode(q){
   }
 }
 function distKm(a,b){ const R=6371, dLa=(b.lat-a.lat)*Math.PI/180, dLo=(b.lon-a.lon)*Math.PI/180, h=Math.sin(dLa/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
-async function routeOSRM(from,to){
-  const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${from.lon.toFixed(6)},${from.lat.toFixed(6)};${to.lon.toFixed(6)},${to.lat.toFixed(6)}?overview=full&geometries=geojson&alternatives=false&steps=false`);
+// Itinéraires : le plus rapide (OSRM, plusieurs variantes) et le plus court en distance (Valhalla, option « shortest »).
+// Deux serveurs OSRM publics : si le premier ne répond pas, on passe au second.
+const tmo=ms=>(window.AbortSignal&&AbortSignal.timeout)?AbortSignal.timeout(ms):undefined;
+function polyDecode(str,prec){ const f=Math.pow(10,prec), out=[]; let i=0,lat=0,lon=0;
+  while(i<str.length){ for(let k=0;k<2;k++){ let b,sh=0,r=0; do{ b=str.charCodeAt(i++)-63; r|=(b&0x1f)<<sh; sh+=5; }while(b>=0x20&&i<=str.length); const d=(r&1)?~(r>>1):(r>>1); if(k===0) lat+=d; else lon+=d; } out.push([lon/f,lat/f]); }
+  return out; }
+async function routeOSRM(from,to,alt){
+  const q=`${from.lon.toFixed(6)},${from.lat.toFixed(6)};${to.lon.toFixed(6)},${to.lat.toFixed(6)}?overview=full&geometries=geojson&alternatives=${alt?3:'false'}&steps=false`;
+  let last=null;
+  for(const base of ['https://router.project-osrm.org/route/v1/driving/','https://routing.openstreetmap.de/routed-car/route/v1/driving/']){
+    try{ const r=await fetch(base+q,{signal:tmo(12000)}); if(!r.ok) throw new Error('HTTP '+r.status);
+      const js=await r.json(); if(js.code!=='Ok'||!js.routes||!js.routes.length) throw new Error(js.code||'aucun itinéraire');
+      return js.routes.map(rt=>({coords:rt.geometry.coordinates,distance:rt.distance,duration:rt.duration,src:'osrm'})); }
+    catch(e){ last=e; } }
+  throw last; }
+async function routeShortest(from,to){
+  const q={locations:[{lat:+from.lat.toFixed(6),lon:+from.lon.toFixed(6)},{lat:+to.lat.toFixed(6),lon:+to.lon.toFixed(6)}],costing:'auto',costing_options:{auto:{shortest:true}},directions_options:{units:'kilometers'},directions_type:'none'};
+  const r=await fetch('https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(q)),{signal:tmo(12000)});
   if(!r.ok) throw new Error('HTTP '+r.status);
-  const js=await r.json(); if(js.code!=='Ok'||!js.routes||!js.routes.length) throw new Error(js.code||'aucun itinéraire');
-  const rt=js.routes[0]; return {coords:rt.geometry.coordinates,distance:rt.distance,duration:rt.duration};
-}
+  const js=await r.json(), tr=js.trip; if(!tr||!tr.legs||!tr.legs.length||!tr.summary) throw new Error('aucun itinéraire');
+  const coords=[]; for(const l of tr.legs){ const c=polyDecode(l.shape||'',6); if(coords.length&&c.length) c.shift(); coords.push(...c); }
+  if(coords.length<2) throw new Error('itinéraire vide');
+  return {coords,distance:tr.summary.length*1000,duration:tr.summary.time,src:'valhalla'}; }
+// Carburant estimé pour un itinéraire (même modèle que pendant le trajet) : roulage à l'allure moyenne + 15 %,
+// moteur au ralenti, et les relances après les arrêts et ralentissements (environ tous les 250 m à 25 km/h de moyenne, tous les 3 km à 90 km/h)
+function routeLitres(r){ const v=Math.max(3,r.distance/Math.max(1,r.duration)), vc=v*1.15;
+  const roll=(CRR*M*G+0.5*RHO*CDA*vc*vc)/(ETA*EF), gap=Math.max(200,5*v*v), starts=r.distance/gap*(0.5*M*vc*vc)/(ETA*EF);
+  return r.distance*roll+r.duration*BASE+starts; }
+async function routeChoices(from,to){
+  const [o,v]=await Promise.allSettled([routeOSRM(from,to,true),routeShortest(from,to)]);
+  const osrm=o.status==='fulfilled'?o.value:[], all=[...osrm,...(v.status==='fulfilled'?[v.value]:[])];
+  if(!all.length) throw (o.reason||v.reason||new Error('réseau'));
+  let fast=(osrm.length?osrm:all).reduce((a,b)=>b.duration<a.duration?b:a), short=all.reduce((a,b)=>b.distance<a.distance?b:a);
+  if(short.duration<=fast.duration) fast=short; // plus court et pas plus lent : un seul choix
+  if(short===fast||short.distance>fast.distance*0.98-50) short=null; // pratiquement le même trajet
+  return {fast,short}; }
+// Recalcul en route : on garde le type d'itinéraire choisi
+async function routeFor(from,to,mode){
+  if(mode==='court'){ try{ return await routeShortest(from,to); }catch(e){} }
+  try{ return (await routeOSRM(from,to,false))[0]; }catch(e){ if(mode!=='court') return await routeShortest(from,to); throw e; } }
 function initRoute(P){
   const pts=P.coords.map(([lo,la])=>toXY(la,lo)), cum=[0];
   for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1]));
@@ -677,18 +749,33 @@ function routeNear(x,y){
 async function reroute(lat,lon){
   if(!PLAN||S.rerouting) return; S.rerouting=true; S.lastRer=performance.now();
   logLine('Sortie de l’itinéraire : recalcul'); say('Nouvel itinéraire.');
-  try{ const rt=await routeOSRM({lat,lon},PLAN.dest); Object.assign(PLAN,rt); initRoute(PLAN); logLine(`Nouvel itinéraire : ${nf(rt.distance/1000,1)} km, ${Math.round(rt.duration/60)} min`); }
+  try{ const rt=await routeFor({lat,lon},PLAN.dest,PLAN.mode); Object.assign(PLAN,rt); initRoute(PLAN); logLine(`Nouvel itinéraire : ${nf(rt.distance/1000,1)} km, ${Math.round(rt.duration/60)} min`); }
   catch(e){ logLine(`Recalcul impossible (${e.message||e})`); }
   S.rerouting=false;
 }
 const hm=t=>{ const d=new Date(t); return `${d.getHours()}h${String(d.getMinutes()).padStart(2,'0')}`; };
 function shortName(r){ const a=r.address||{}; const main=r.name||(r.display_name||'').split(',')[0]; const city=a.city||a.town||a.village||a.municipality||''; return {main, sub:(r.display_name||'').split(',').slice(1,4).join(',').trim(), city}; }
+let ROUTE_MODE='rapide'; try{ if(localStorage.getItem('pl-route')==='court') ROUTE_MODE='court'; }catch(e){}
+function planPick(mode){ const o=PLAN&&PLAN.opts; if(!o) return; const r=mode==='court'&&o.short?o.short:o.fast;
+  Object.assign(PLAN,{coords:r.coords,distance:r.distance,duration:r.duration,mode:r===o.short?'court':'rapide'}); }
 function renderPlan(){
   const box=$('destInfo'); box.textContent=''; box.hidden=!PLAN; $('bReal').textContent=PLAN?'C’est parti':'Rouler'; glSetRoute(PLAN,true); if(!PLAN) return;
   const b=document.createElement('b'); b.textContent=PLAN.dest.name;
-  const sp=document.createElement('span'); sp.textContent=`${nf(PLAN.distance/1000,1)} km · environ ${Math.max(1,Math.round(PLAN.duration/60))} min (sans trafic)`;
   const x=document.createElement('button'); x.className='tbtn'; x.type='button'; x.textContent='Retirer'; x.onclick=()=>{ PLAN=null; renderPlan(); };
-  box.append(b,sp,x);
+  const o=PLAN.opts, line=r=>`${Math.max(1,Math.round(r.duration/60))} min · ${nf(r.distance/1000,1)} km · ≈ ${nf(routeLitres(r)*PRICE,2)} €`;
+  if(o&&o.short){
+    const box2=document.createElement('div'); box2.className='ropts';
+    for(const [mode,r,t] of [['rapide',o.fast,'Le plus rapide'],['court',o.short,'Le plus court']]){
+      const bt=document.createElement('button'); bt.type='button'; bt.className='ropt'; bt.setAttribute('aria-pressed',String(PLAN.mode===mode));
+      const k=document.createElement('b'); k.textContent=t; const d=document.createElement('span'); d.textContent=`${Math.max(1,Math.round(r.duration/60))} min · ${nf(r.distance/1000,1)} km`;
+      const c=document.createElement('small'); c.textContent=`≈ ${nf(routeLitres(r)*PRICE,2)} € de carburant`;
+      bt.append(k,d,c); bt.onclick=()=>{ ROUTE_MODE=mode; try{ localStorage.setItem('pl-route',mode); }catch(e){} planPick(mode); renderPlan(); };
+      box2.append(bt); }
+    const n=document.createElement('small'); n.className='fine'; n.textContent='Sans trafic. Carburant estimé au prix moyen.';
+    box.append(b,x,box2,n);
+  } else {
+    const sp=document.createElement('span'); sp.textContent=o?`${line(PLAN)} · le plus rapide est aussi le plus court`:`${nf(PLAN.distance/1000,1)} km · environ ${Math.max(1,Math.round(PLAN.duration/60))} min (sans trafic)`;
+    box.append(b,sp,x); }
 }
 let searchSeq=0, searchTimer=null;
 async function runSearch(q){
@@ -706,7 +793,8 @@ async function runSearch(q){
     const sm=document.createElement('span'); sm.textContent=[r.kind,r.addr,r.dist!=null?`${nf(r.dist,r.dist<10?1:0)} km`:''].filter(Boolean).join(' · ');
     bt.append(b,sm);
     bt.onclick=async()=>{ res.textContent=''; $('qDest').value=r.name; const box=$('destInfo'); box.hidden=false; box.textContent='Calcul de l’itinéraire…';
-      try{ const from=await getPos(); const rt=await routeOSRM(from,{lat:r.lat,lon:r.lon}); PLAN={dest:{lat:r.lat,lon:r.lon,name:r.name+(r.city&&r.city!==r.name?`, ${r.city}`:'')},...rt}; renderPlan(); }
+      try{ const from=await getPos(); const opts=await routeChoices(from,{lat:r.lat,lon:r.lon}); PLAN={dest:{lat:r.lat,lon:r.lon,name:r.name+(r.city&&r.city!==r.name?`, ${r.city}`:'')},opts}; planPick(ROUTE_MODE); renderPlan();
+        logLine(`Itinéraires : rapide ${nf(opts.fast.distance/1000,1)} km / ${Math.round(opts.fast.duration/60)} min${opts.short?`, court ${nf(opts.short.distance/1000,1)} km / ${Math.round(opts.short.duration/60)} min`:' (le même que le plus court)'}`); }
       catch(err){ PLAN=null; box.textContent=`Itinéraire impossible (${err.code===1?'localisation refusée':(err.message||'réseau')}). Vous pouvez démarrer sans destination.`; } };
     res.append(bt);
   }
@@ -752,7 +840,7 @@ function buildPath(m,sim){
     const [x,y]=w.pts[i], dd=Math.hypot(x-px,y-py);
     if(dd>0.5) brg=Math.atan2(x-px,y-py);
     const ox=px, oy=py;
-    total+=dd; px=x; py=y; pts.push([x,y,total]);
+    total+=dd; px=x; py=y; pts.push([x,y,total,w.bt?1:0]);
     if(w.round){ roundD+=dd; rps.push(total); }
     const nid=w.nodes[i];
     nodeEvent(nid,total,dir,ev);
@@ -835,10 +923,10 @@ function pointAt(pts,s){
 /* ===== Estimation carburant (modèle, pas une mesure) ===== */
 function ecoStep(v0,v1,dt){
   const E=S.eco, vm=(v0+v1)/2, a=(v1-v0)/dt; E.a=E.a*0.5+a*0.5;
-  const Fres=CRR*M*G+0.5*RHO*CDA*vm*vm, ds=vm*dt; E.dist+=ds;
+  const Fres=CRR*M*G+0.5*RHO*CDA*vm*vm, ds=vm*dt, ag=E.a+G*(S.grade||0); E.dist+=ds; // ag : accélération ramenée à une route plate
   if(vm<1.5){ E.fuel+=IDLE*dt; return; }
-  if(E.a>-0.12){ E.fuel+=(BASE+(M*Math.max(0,E.a)+Fres)*vm/(ETA*EF))*dt; }
-  else if(E.a>-(coastDecel(vm)+0.6)){ if(vm<=4) E.fuel+=IDLE*dt; else { E.saved+=(BASE+Fres*vm/(ETA*EF))*dt; E.coast+=ds; } }
+  if(ag>-0.12){ E.fuel+=(BASE+(M*Math.max(0,E.a)+Math.max(0,Fres+M*G*(S.grade||0)))*vm/(ETA*EF))*dt; }
+  else if(ag>-(coastDecel(vm)+0.6)){ if(vm<=4) E.fuel+=IDLE*dt; else { E.saved+=(BASE+Fres*vm/(ETA*EF))*dt; E.coast+=ds; } }
   else { if(vm<=4) E.fuel+=IDLE*dt; }
   $('hEco').textContent=`${nf(E.saved,2)} L`; kittySet(E.saved*PRICE);
 }
@@ -852,6 +940,7 @@ function onFix(p){ setTimeout(autoIdle,0); const F=S.fl, t=performance.now(); if
 function onFixCore(p){
   const c=p.coords, now=performance.now();
   if(!S.ref) setRef(c.latitude,c.longitude);
+  elPrefetch(c.latitude,c.longitude);
   if(PLAN&&!S.route) initRoute(PLAN);
   const xy=toXY(c.latitude,c.longitude);
   S.acc=c.accuracy;
@@ -895,7 +984,7 @@ function onFixCore(p){
     const rem=Math.max(0,S.route.len-S.route.s);
     if(rem<40&&!S.arrived){ S.arrived=true; logLine('Arrivée à destination'); beep(660,2); say(voiceTxt('arrive')); }
     const left=S.route.duration*rem/S.route.len; $('hEtaT').textContent=S.arrived?'Arrivé':hm(Date.now()+left*1000); $('hEtaI').textContent=S.arrived?'à destination':`${Math.max(1,Math.round(left/60))} min · ${nf(rem/1000,1)} km`; }
-  const P=buildPath(m,S.mode==='sim');
+  const P=buildPath(m,S.mode==='sim'); elProfile(P); S.grade=gradeAt(P,0);
   for(const e of P.ev){ const q=pointAt(P.pts,e.d); e.wx=q[0]; e.wy=q[1];
     const old=S.ev.find(o=>o.type===e.type&&o.wx!=null&&Math.hypot(o.wx-e.wx,o.wy-e.wy)<35); if(old) e.key=old.key; }
   // obstacles passés
@@ -914,14 +1003,69 @@ function inBackground(){ return document.hidden||performance.now()-lastFrameAt>1
 function backgroundTick(){ if(!S.running||!inBackground()) return; try{ const v=S.vS??S.v, g=S.path?guide(v,0):{lvl:'go'}; updateCue(g); }catch(e){} }
 function onGeoErr(e){ const g=$('cGps'); g.textContent='GPS : '+(e.code===1?'refusé':'indisponible'); g.className='chip err'; if(e.code===1){ $('cT').textContent='GPS refusé'; $('cS').textContent='Autorisez la localisation pour ce site dans les réglages du navigateur'; } }
 
+/* ===== Dénivelé =====
+   Altitude du terrain (modèle Copernicus à 90 m, service Open-Meteo), par carreaux de 10 × 10 points espacés de 0,001°
+   (environ 110 × 75 m), interpolée entre les 4 points voisins. Sur le trajet devant soi : un point tous les 10 m, lissé sur 60 m.
+   Ponts et tunnels : le relief n'est pas celui de la route, on relie simplement les deux bouts.
+   En descente la voiture ralentit moins en roue libre (on lève le pied plus tôt) ; en montée, plus vite (on lève plus tard). */
+const EL={step:0.001,tiles:new Map(),busy:0,until:0,ok:false};
+function elGet(i,j){ const ti=Math.floor(i/10), tj=Math.floor(j/10), t=EL.tiles.get(ti+','+tj); return t&&t!==1?t[(i-ti*10)*10+(j-tj*10)]:null; }
+async function elFetch(ti,tj){ const k=ti+','+tj; if(EL.tiles.has(k)||EL.busy>=4||performance.now()<EL.until) return;
+  EL.tiles.set(k,1); EL.busy++; const la=[],lo=[];
+  for(let a=0;a<10;a++) for(let b=0;b<10;b++){ la.push(((ti*10+a)*EL.step).toFixed(3)); lo.push(((tj*10+b)*EL.step).toFixed(3)); }
+  try{ const r=await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${la.join(',')}&longitude=${lo.join(',')}`,{signal:tmo(9000)});
+    if(!r.ok) throw new Error('HTTP '+r.status); const h=(await r.json()).elevation;
+    if(!Array.isArray(h)||h.length!==100||h.some(x=>x==null||isNaN(+x))) throw new Error('réponse inattendue');
+    EL.tiles.set(k,Float32Array.from(h,x=>+x)); if(EL.tiles.size>400) EL.tiles.delete(EL.tiles.keys().next().value);
+    if(!EL.ok){ EL.ok=true; logLine('Dénivelé : relief chargé'); } }
+  catch(e){ EL.tiles.delete(k); EL.until=performance.now()+20000; if(!EL.err){ EL.err=1; logLine(`Dénivelé indisponible pour le moment (${e.message||e}) : calcul sur terrain plat`); } }
+  EL.busy--; }
+function elevAt(lat,lon){ const fi=lat/EL.step, fj=lon/EL.step, i=Math.floor(fi), j=Math.floor(fj), u=fi-i, w=fj-j;
+  const a=elGet(i,j), b=elGet(i+1,j), c=elGet(i,j+1), d=elGet(i+1,j+1);
+  if(a==null||b==null||c==null||d==null){ for(const [p,q] of [[i,j],[i+1,j],[i,j+1],[i+1,j+1]]) elFetch(Math.floor(p/10),Math.floor(q/10)); return null; }
+  return a*(1-u)*(1-w)+b*u*(1-w)+c*(1-u)*w+d*u*w; }
+// les carreaux autour de la voiture (environ 1 km de chaque côté), chargés d'avance
+function elPrefetch(lat,lon){ const ti=Math.floor(lat/EL.step/10), tj=Math.floor(lon/EL.step/10);
+  for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++) elFetch(ti+a,tj+b); }
+// profil du trajet devant soi : altitude lissée (P.hs) et pente (P.gr) tous les 10 m ; P.elOk si au moins 90 % des points sont connus
+function elProfile(P){ const n=Math.floor(P.len/10)+1; if(n<3) return;
+  // ponts et tunnels, élargis de 100 m de chaque côté (les points du relief sont espacés d’environ 110 m)
+  const h=new Array(n).fill(null), skip=new Uint8Array(n); let known=0, seg=1;
+  for(let k=0;k<n;k++){ const s=k*10; while(seg<P.pts.length-1&&P.pts[seg][2]<s) seg++;
+    if(P.pts[seg]&&P.pts[seg][3]) for(let m=Math.max(0,k-10);m<=Math.min(n-1,k+10);m++) skip[m]=1; }
+  for(let k=0;k<n;k++){ if(skip[k]){ known++; continue; }
+    const q=pointAt(P.pts,k*10), ll=toLL(q[0],q[1]), z=elevAt(ll[0],ll[1]); if(z!=null){ h[k]=z; known++; } }
+  if(known===skip.reduce((a,b)=>a+b,0)) return;
+  // trous (ponts, tunnels, carreaux pas encore chargés) : interpolation linéaire entre les points connus
+  let prev=-1; for(let k=0;k<n;k++){ if(h[k]==null) continue;
+    if(prev<0){ for(let m=0;m<k;m++) h[m]=h[k]; } else for(let m=prev+1;m<k;m++) h[m]=h[prev]+(h[k]-h[prev])*(m-prev)/(k-prev);
+    prev=k; }
+  for(let m=prev+1;m<n;m++) h[m]=h[prev];
+  const hs=new Float32Array(n); for(let k=0;k<n;k++){ let t=0,c=0; for(let m=Math.max(0,k-3);m<=Math.min(n-1,k+3);m++){ t+=h[m]; c++; } hs[k]=t/c; }
+  const gr=new Float32Array(n); for(let k=0;k<n;k++){ const a=Math.max(0,k-1), b=Math.min(n-1,k+1); gr[k]=b>a?clamp((hs[b]-hs[a])/((b-a)*10),-0.12,0.12):0; }
+  P.hs=hs; P.gr=gr; P.elOk=known>=n*0.9; }
+const gradeAt=(P,s)=>P&&P.gr?P.gr[clamp(Math.round(s/10),0,P.gr.length-1)]:0;
+const heightAt=(P,s)=>{ if(!P||!P.hs) return 0; const f=clamp(s/10,0,P.hs.length-1), k=Math.floor(f), m=Math.min(k+1,P.hs.length-1); return P.hs[k]+(P.hs[m]-P.hs[k])*(f-k); };
+// distance de roue libre pour passer de v0 à v1 en arrivant au point endS du trajet, pente comprise :
+// on remonte depuis l'obstacle par pas de 5 m (v² augmente de 2·(résistances + g·pente)·Δs) ; plafonnée à 1 200 m
+function coastDistAt(v0,v1,endS){ const P=S.path; if(!P||!P.gr) return coastDist(v0,v1);
+  let v2=v1*v1, D=0; const ds=5, t2=v0*v0;
+  while(v2<t2&&D<1200){ const v=Math.sqrt(v2), a=coastDecel(v)+G*gradeAt(P,endS-D-ds/2); v2=Math.max(0.25,v2+2*a*ds); D+=ds; }
+  if(v2>t2){ const v=Math.sqrt(v2), a=coastDecel(v)+G*gradeAt(P,endS-D+ds/2); if(a>0.01) D-=Math.min(ds,(v2-t2)/(2*a)); }
+  return Math.max(0,D); }
+
 /* ===== Consignes ===== */
 // Distance « lever le pied » avant l'obstacle, figée pour que le repère ne bouge pas. Seul guide() la modifie :
 // recalculée si la vitesse change beaucoup (écart > 30 m), et plus du tout à moins de 150 m du repère.
 // (Avant, le tracé coloré la recalculait aussi avec une autre vitesse : le repère sautait d'une valeur à l'autre.)
 function liftBefore(e,v,vt,dEff){
   // calculé pour la vitesse autorisée (ou plus si on roule plus vite) : le point ne recule pas pendant qu'on accélère
-  const vRef=Math.max(v,Math.min(S.limit||50,130)/KMH), raw=coastDist(vRef,vt), r=S.liftRef[e.key];
-  if(r==null) S.liftRef[e.key]=Math.round(raw/10)*10;
+  const vRef=Math.max(v,Math.min(S.limit||50,130)/KMH), endS=e.d-(e.vt===0?4:0), P=S.path||{};
+  const ck=e.key+'|'+Math.round(vRef*2)+'|'+Math.round(endS/5); P.cd=P.cd||new Map();
+  let raw=P.cd.get(ck); if(raw==null){ raw=coastDistAt(vRef,vt,endS); P.cd.set(ck,raw); }
+  const r=S.liftRef[e.key], el=!!(P&&P.elOk);
+  if(r==null){ S.liftRef[e.key]=Math.round(raw/10)*10; S.liftEl[e.key]=el; }
+  else if(el&&!S.liftEl[e.key]&&dEff-r>150){ S.liftRef[e.key]=Math.round(raw/10)*10; S.liftEl[e.key]=true; } // le relief vient d'arriver : on corrige une fois, loin du repère
   else if(dEff-r>150&&raw-r>30) S.liftRef[e.key]=Math.round(raw/10)*10; // seulement plus tôt, jamais d'aller-retour
   return S.liftRef[e.key]; }
 // Zones colorées et repère « lever le pied ici », tirés uniquement des points de lever figés (S.liftRef) :
@@ -950,7 +1094,7 @@ function guide(v,adv){
     if(stop&&dn<20&&dn>-3&&v>0.8) return {lvl:'stopzone',e,dn,info:{e,dn}};
     if(v<=vt+0.4){ if(S.lifted[e.key]&&dn<150&&best>0){ best=0; ctrl={e,dn,liftAt:0,brake:false,hold:true}; } continue; }
     const liftAt=dEff-liftBefore(e,v,vt,dEff), need=(v*v-vt*vt)/(2*Math.max(1,dEff));
-    const brake=e.hard&&v>vt+1.4&&need>coastDecel(v)+0.6;
+    const slope=dn>20?(heightAt(S.path,e.d)-heightAt(S.path,adv))/dn:0, brake=e.hard&&v>vt+1.4&&need>coastDecel(v)+G*slope+0.6;
     const sc=brake?-1e6+dn:liftAt;
     if(sc<best){ best=sc; ctrl={e,dn,liftAt,brake}; }
   }
@@ -981,22 +1125,31 @@ function setCue(cls,ico,t,s,p){
 /* ===== Bulle flottante (appli Android, par-dessus Waze) ===== */
 const BUB={on:false,last:'',info:{color:'#5A6560',line1:'PIED LEVÉ',line2:''}};
 function bubbleInfo(g){
-  // couleurs foncées (texte blanc lisible) et pictogramme identiques au bandeau de l'appli
-  // au repos, la bulle montre la cagnotte du trajet (la vitesse est déjà dans Waze)
-  const pot=`${nf(Math.floor((S.eco?S.eco.saved:0)*PRICE*100)/100,2)} €`;
-  if(!S.xy||!S.ways.size||!S.path||!g) return {color:'#3A4440',icon:'kitty',line1:'CAGNOTTE',line2:pot};
-  if(S.cheer&&performance.now()<S.cheer.until&&g.lvl!=='brake'&&g.lvl!=='stopzone') return {color:'#1E7A4C',icon:'go',line1:'BIEN JOUÉ !',line2:S.cheer.txt};
+  // La bulle compte les mètres jusqu'au point où lever le pied, avec la jauge qui se remplit de façon régulière.
+  // Une fois le pied levé (allure atteinte, conseil suivi), elle montre la cagnotte quelques secondes, puis repasse aux mètres.
+  const now=performance.now(), pot=`${nf(Math.floor((S.eco?S.eco.saved:0)*PRICE*100)/100,2)} €`, kitty={color:'#1E7A4C',icon:'kitty',line1:'CAGNOTTE',line2:pot};
+  if(!S.xy||!S.ways.size||!S.path||!g) return {...kitty,color:'#3A4440'};
   const e=g.e;
+  if(BUB.liftKey&&!((g.lvl==='lift'||g.lvl==='hold')&&e&&e.key===BUB.liftKey)){ BUB.liftKey=null; BUB.potUntil=now+4000; } // fin du lever de pied
   switch(g.lvl){
     case 'stopzone': return e&&e.type==='arrivee'?{color:'#A85E05',icon:'stop',line1:'ARRIVÉE',line2:fmtD(Math.max(0,g.dn))}:{color:'#B3332B',icon:'stop',line1:'STOP',line2:fmtD(Math.max(0,g.dn))};
     case 'brake': return {color:'#B3332B',icon:'brake',line1:'FREINEZ',line2:fmtD(g.dn)};
-    case 'lift': return {color:'#A85E05',icon:'lift',line1:'LEVEZ LE PIED',line2:fmtD(g.dn)};
-    case 'prep': return {color:'#1C5A72',icon:'prep',line1:'LEVEZ DANS',line2:fmtD(g.liftAt),progress:Math.round((S.gauge?S.gauge.p:0)*10)/10,rate:Math.round((S.gauge?S.gauge.rate:0)*1000)/1000}; // la bulle se remplit d'orange, à vitesse régulière (Android anime entre deux mises à jour)
-    default: return {color:'#1E7A4C',icon:'kitty',line1:'CAGNOTTE',line2:pot};
+    case 'lift': BUB.liftKey=e.key; return {color:'#A85E05',icon:'lift',line1:'LEVEZ LE PIED',line2:fmtD(g.dn),progress:1,rate:0};
+    case 'hold': BUB.liftKey=e.key; return kitty; // pied levé, à la bonne allure : la cagnotte
   }
+  const counting=g.liftAt!=null&&e, m=counting?gaugeM(g):null;
+  const cheer=S.cheer&&now<S.cheer.until;
+  if((cheer||now<(BUB.potUntil||0)||!counting)&&!(counting&&m<150)) return kitty;
+  // mètres avant de lever le pied ; Android fait défiler le compte et la jauge entre deux mises à jour (meters, mps)
+  const G=S.gauge;
+  return {color:'#1C5A72',icon:'prep',line1:'LEVEZ DANS',line2:fmtD(m),progress:Math.round(G.p*100)/100,rate:Math.round(G.rate*1000)/1000,
+    meters:Math.round(m/5)*5,mps:Math.round(G.v*2)/2,key:e.key};
 }
 // Le contenu est toujours transmis à Android, qui affiche la bulle de lui-même quand l'appli passe derrière
-function bubbleSet(g){ BUB.info=bubbleInfo(g); const k=JSON.stringify(BUB.info); if(NATIVE&&PLUG.Bubble&&k!==BUB.last){ BUB.last=k; try{ PLUG.Bubble.update(BUB.info).catch(()=>{}); }catch(e){} } }
+function bubbleSet(g){ BUB.info=bubbleInfo(g); const i=BUB.info, k=JSON.stringify(i), c=[i.color,i.icon,i.line1,i.key,i.mps].join('|'), now=performance.now();
+  if(k===BUB.last||(c===BUB.lastC&&now-(BUB.lastT||0)<330)) return;
+  BUB.last=k; BUB.lastC=c; BUB.lastT=now; BUB.sent=(BUB.sent||0)+1;
+  if(NATIVE&&PLUG.Bubble){ try{ PLUG.Bubble.update(i).catch(()=>{}); }catch(e){} } }
 function bubbleArm(on,manual){ const B=PLUG.Bubble; if(!NATIVE||!B) return; try{ B.arm({active:on,manual:!!manual,...BUB.info}).catch(()=>{}); }catch(e){} } // un souci de bulle ne doit jamais bloquer le trajet
 async function bubbleReport(){ const B=PLUG.Bubble; if(!NATIVE||!B) return;
   // le bilan est déjà affiché : on ajoute la ligne aussi au journal visible
@@ -1083,14 +1236,17 @@ async function nativeReport(){ if(!NATIVE) return; const r=[];
   try{ const w=await PLUG.Bubble.watchStatus();
     logLine(`Veille Waze : ${w.on?'activée':'coupée'}, accès aux données d’utilisation ${w.usage?'oui':'non'}, ${w.running?`tourne (dernière vérification il y a ${w.ago} s)`:'ne tourne pas'}, appli vue devant : ${w.foreground||'aucune'}, démarrages lancés : ${w.launches}${w.lastError?`, erreur : ${w.lastError}`:''}`); }catch(e){} }
 
-// Jauge d'approche : avance de façon régulière à la vitesse de la voiture (comme une aiguille),
-// puis se recale en douceur sur la distance restante ; elle ne recule jamais. Une jauge par obstacle.
-function gaugeP(g){ const now=performance.now(), key=g.e?g.e.key:'', target=clamp(1-g.liftAt/350,0,1);
+// Jauge d'approche et compte à rebours « levez le pied dans … m » : une seule distance par obstacle,
+// qui diminue à la vitesse de la voiture (régulière, comme une aiguille), se recale en douceur sur la distance mesurée
+// et ne remonte jamais. La jauge (bandeau et bulle) et le nombre de mètres en découlent : ils avancent ensemble.
+const GAUGE_D=350;
+function gaugeM(g){ const now=performance.now(), key=g.e?g.e.key:'', want=Math.max(0,g.liftAt||0);
   const v=S.mode==='sim'?SIM.v*(SIM.mult||1):(S.vS??S.v);
-  let G=S.gauge; if(!G||G.key!==key){ G=S.gauge={key,p:target,t:now,rate:0}; }
+  let G=S.gauge; if(!G||G.key!==key||want>G.m+60||want<G.m-80) G=S.gauge={key,m:want,t:now,p:0,rate:0,v:0};
   const dt=Math.min(1.2,Math.max(0,(now-G.t)/1000)); G.t=now;
-  let p=G.p+v*dt/350; p+=(target-p)*Math.min(1,dt*0.6);
-  G.p=clamp(Math.max(G.p,p),0,1); G.rate=Math.max(0,v/350); return G.p; }
+  let m=G.m-v*dt; m+=(want-m)*Math.min(1,dt*0.6);
+  G.m=Math.max(0,Math.min(G.m,m)); G.v=v; G.p=clamp(1-G.m/GAUGE_D,0,1); G.rate=G.m<GAUGE_D?v/GAUGE_D:0; return G.m; }
+function gaugeP(g){ gaugeM(g); return S.gauge.p; }
 function updateCue(g){
   if(!S.running) return;
   updateCueCore(g); bubbleSet(g);
@@ -1106,7 +1262,7 @@ function updateCueCore(g){
     case 'brake': setCue('brake','brake','Freinez doucement',`${tgt} dans ${fmtD(g.dn)}`); break;
     case 'lift': setCue('lift','lift','Levez le pied', e.hard?`${tgt} dans ${fmtD(g.dn)} · l’élan suffit`:`${e.label} dans ${fmtD(g.dn)} · anticipez`); break;
     case 'hold': setCue('go','go','Bonne allure', e.vt?`${e.label} dans ${fmtD(g.dn)} · gardez ${e.vt} km/h`:`${e.label} dans ${fmtD(g.dn)} · laissez rouler`); break;
-    case 'prep': setCue('prep','prep',`Levez le pied dans ${fmtD(g.liftAt)}`,`${tgt} dans ${fmtD(g.dn)}`,gaugeP(g)); break;
+    case 'prep': { const p=gaugeP(g); setCue('prep','prep',`Levez le pied dans ${fmtD(S.gauge.m)}`,`${tgt} dans ${fmtD(g.dn)}`,p); break; }
     default: setCue('go','go','Roulez normalement', g.info?`Prochain : ${g.info.e.label} dans ${fmtD(g.info.dn)}`:'Rien à anticiper devant');
   }
   // voix + bips
@@ -1200,10 +1356,11 @@ readTheme(); try{ matchMedia('(prefers-color-scheme: dark)').addEventListener('c
 const NIGHT={mode:'auto',dark:null};
 try{ const m=localStorage.getItem('pl-night'); if(['auto','on','off'].includes(m)) NIGHT.mode=m; }catch(e){}
 // hauteur du soleil (degrés) à une position et une heure données
-const SKINS={classique:'Classique',france:'France',scandinave:'Scandinave',colore:'Coloré'};
-let SKIN='classique'; try{ const k=localStorage.getItem('pl-skin'); if(SKINS[k]) SKIN=k; }catch(e){}
-function setSkin(k){ SKIN=SKINS[k]?k:'classique'; try{ localStorage.setItem('pl-skin',SKIN); }catch(e){}
-  if(SKIN==='classique') delete document.documentElement.dataset.skin; else document.documentElement.dataset.skin=SKIN; readTheme(); }
+const SKINS={moderne:'Moderne',classique:'Classique',france:'France',scandinave:'Scandinave',colore:'Coloré'};
+let SKIN='moderne'; try{ const k=localStorage.getItem('pl-skin2'); if(SKINS[k]) SKIN=k; }catch(e){}
+function setSkin(k){ SKIN=SKINS[k]?k:'moderne'; try{ localStorage.setItem('pl-skin2',SKIN); }catch(e){}
+  if(SKIN==='classique') delete document.documentElement.dataset.skin; else document.documentElement.dataset.skin=SKIN; readTheme();
+  try{ mapTheme(!!NIGHT.dark); }catch(e){} }
 setSkin(SKIN);
 function sunAlt(lat,lon,date){ const r=Math.PI/180, d=(date.getTime()-Date.UTC(2000,0,1,12))/864e5;
   const L=(280.46+0.9856474*d)%360, gm=(357.528+0.9856003*d)%360, lam=(L+1.915*Math.sin(gm*r)+0.02*Math.sin(2*gm*r))*r, eps=(23.439-4e-7*d)*r;
@@ -1223,12 +1380,15 @@ setInterval(()=>{ if(S.ref){ try{ localStorage.setItem('pl-lastpos',JSON.stringi
 const MAP_DAY=new Map();
 // Palettes de carte : la nuit, et les styles au choix (null = couleurs d'origine)
 const MAP_PALS={
+  moderne:{bg:'#0E1418',water:'#0F202B',park:'#11201B',fill:'#121A20',road:'#22303A',casing:'#0B1014',other:'#1C2830',text:'#8FA3AE',halo:'#0E1418'},
   nuit:{bg:'#111716',water:'#0E2230',park:'#14211A',fill:'#161D1C',road:'#3B4745',casing:'#0A0E0D',other:'#2A3331',text:'#C9D3CF',halo:'#0E1312'},
   epure:{bg:'#F4F4F2',water:'#DCE3E8',park:'#E7EDE4',fill:'#EFEFEC',road:'#FFFFFF',casing:'#D6D6D1',other:'#E3E3DF',text:'#6B6B66',halo:'#FFFFFF'},
   vintage:{bg:'#F1E7D0',water:'#B9D2CF',park:'#D8DDB5',fill:'#EADFC4',road:'#FFF8E8',casing:'#C9B48A',other:'#DCCFAF',text:'#5B4A2E',halo:'#F1E7D0'},
   fjord:{bg:'#1E2A35',water:'#16212B',park:'#22323A',fill:'#243240',road:'#3E5263',casing:'#121A21',other:'#2C3C4A',text:'#B9C7D3',halo:'#1E2A35'}};
 let MAP_CHOICE='classique'; try{ const m=localStorage.getItem('pl-map'); if(m) MAP_CHOICE=m; }catch(e){}
-function mapTheme(dark){ mapPaint(dark?MAP_PALS.nuit:(MAP_PALS[MAP_CHOICE]||null)); }
+function mapTheme(dark){ mapPaint(SKIN==='moderne'&&MAP_CHOICE==='classique'?MAP_PALS.moderne:dark?MAP_PALS.nuit:(MAP_PALS[MAP_CHOICE]||null)); mapRouteColors(); }
+// tracé : couleurs du style (vert = roulez, orange = pied levé, rouge = arrêt)
+function mapRouteColors(){ if(!GL||!MAP) return; try{ MAP.setPaintProperty('route','line-color',T.route||'#2A8FD6'); MAP.setPaintProperty('ahead','line-color',['match',['get','c'],1,T.lift||'#E58A10',2,T.brake||'#D3433A',T.go||'#24965C']); }catch(e){} }
 function mapPaint(P){ if(!GL||!MAP) return;
   const set=(id,prop,val)=>{ try{ const k=id+'|'+prop; if(!MAP_DAY.has(k)) MAP_DAY.set(k,MAP.getPaintProperty(id,prop)); MAP.setPaintProperty(id,prop,P?val:MAP_DAY.get(k)); }catch(e){} };
   const p=P||{};
@@ -1460,9 +1620,9 @@ function simTick(dt,g){
   if(SIM.wait>0){ SIM.wait-=dt; SIM.v=0; a=0; }
   else if(g.lvl==='stopzone'){ const d=Math.max(0.5,g.dn-1); a=-Math.min(2.6,SIM.v*SIM.v/(2*d)+0.1); }
   else if(g.lvl==='brake'){ const vt=(g.e.vt||12)/KMH; a=-Math.max(1.5,(SIM.v*SIM.v-vt*vt)/(2*Math.max(1,g.dn))); }
-  else if(g.lvl==='lift') a=-coastDecel(SIM.v);
+  else if(g.lvl==='lift') a=-coastDecel(SIM.v)-G*gradeAt(S.path,SIM.s);
   else if(g.lvl==='hold') a=0;
-  else a=SIM.v<cruise-0.3?1.2:(SIM.v>cruise+0.3?-coastDecel(SIM.v):0);
+  else a=SIM.v<cruise-0.3?1.2:(SIM.v>cruise+0.3?-Math.max(0.3,coastDecel(SIM.v)+G*gradeAt(S.path,SIM.s)):0);
   SIM.v=Math.max(0,SIM.v+a*dt);
   if(g.lvl==='stopzone'&&SIM.v<0.6&&SIM.wait<=0){ SIM.v=0; SIM.wait=2; }
   SIM.s+=SIM.v*dt;
@@ -1552,7 +1712,7 @@ async function keepAwake(){ try{ if(NATIVE&&PLUG.KeepAwake){ await PLUG.KeepAwak
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&S.running) keepAwake(); else if(S.running) logLine('Page passée en arrière-plan'); });
 function unlockAudio(){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech){ if(voiceOn) speakNative(voiceTxt('ready')); return; } if(!voiceOn) return; try{ const u=new SpeechSynthesisUtterance(voiceTxt('ready')); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} }
 function reset(){
-  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},curveMem:[],cheer:null,gauge:null,liftShown:null,vS:null,veh:null,auto:false,idleSince:0,autoEnd:false,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
+  Object.assign(S,{ref:null,ways:new Map(),nodeWays:new Map(),nodeTags:new Map(),grid:new Map(),fetchXY:null,fetching:false,fetchFail:0,v:0,hd:null,xy:null,match:null,path:null,ev:[],limit:null,near:[],lifted:{},said:{},passed:{},minNear:{},stopDone:{},liftRef:{},liftEl:{},curveMem:[],cheer:null,gauge:null,liftShown:null,vS:null,veh:null,auto:false,idleSince:0,autoEnd:false,lastSay:0,noRoad:0,vPrev:null,tPrev:null,headFrom:null,log:{t0:Date.now(),dist:0,cues:0,fol:0,hard:0,passes:[],lines:[]},pend:[],route:null,onRoute:false,arrived:false,offCnt:0,lastRer:0,rerouting:false,eco:{a:0,fuel:0,saved:0,coast:0,dist:0}});
   $('hEco').textContent='0,00 L'; KITTY.v=-1; kittySet(0); $('hEtaT').textContent=PLAN?'…':'Pied Levé'; $('hEtaI').textContent=PLAN?PLAN.dest.name:'sans destination';
   camH=null; Object.assign(SIM,{v:0,s:0,acc:0,wait:0,done:false});
 }

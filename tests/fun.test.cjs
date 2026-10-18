@@ -49,8 +49,11 @@ function serve() {
   check(st.cues > 0 && st.fol > 0, `conseils suivis pendant la simulation : ${st.fol} sur ${st.cues}`);
   check(st.toast > 10, '« Bien joué ! » s’affiche à l’écran quand un conseil est suivi');
   check(spoken.some(t => /Excellent/.test(t)) && spoken.some(t => /Allez, on lève le pied/.test(t)), `la voix « Coach » parle (${spoken.slice(0, 3).join(' / ')})`);
-  const bub = await page.evaluate(() => { const S = window.__PL.S; S.cheer = { until: performance.now() + 2000, txt: '+0,05 €' }; return window.__PL.bubbleInfo({ lvl: 'go' }); });
-  check(bub.line1 === 'BIEN JOUÉ !' && bub.line2 === '+0,05 €', 'la bulle affiche aussi « BIEN JOUÉ ! » et le gain');
+  // bulle : la cagnotte une fois le pied levé (conseil suivi), mais les mètres reprennent la main si le prochain lever est proche
+  const bub = await page.evaluate(() => { const S = window.__PL.S; S.cheer = { until: performance.now() + 2000, txt: '+0,05 €' };
+    return [window.__PL.bubbleInfo({ lvl: 'prep', liftAt: 300, dn: 450, e: { key: 'x1' } }), window.__PL.bubbleInfo({ lvl: 'prep', liftAt: 120, dn: 300, e: { key: 'x2' } })]; });
+  check(bub[0].line1 === 'CAGNOTTE' && /€$/.test(bub[0].line2), `la bulle montre la cagnotte quand le pied a été levé (${bub[0].line2})`);
+  check(bub[1].line1 === 'LEVEZ DANS' && bub[1].line2 === '120 m' && bub[1].meters === 120, `puis repasse aux mètres quand le prochain lever approche (${bub[1].line2})`);
   // fin de la simulation : note, euros, badges montrés mais pas enregistrés
   await page.click('#bEnd'); await page.waitForTimeout(400);
   const note = await page.textContent('#eNote'), saved = await page.textContent('#eSaved');

@@ -20,7 +20,7 @@ function serve() {
     const s = http.createServer((req, rsp) => {
       const f = path.join(DIR, decodeURIComponent(req.url.split('?')[0]).replace(/^\/$/, '/index.html'));
       fs.readFile(f, (e, b) => { if (e) { rsp.writeHead(404); return rsp.end(); }
-        if (f.endsWith('.html')) b = b.toString().replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, 'window.__PL={get S(){return S},bubbleInfo};})();</script></body>');
+        if (f.endsWith('.html')) b = b.toString().replace(/\}\)\(\);\s*<\/script>\s*<\/body>/, 'window.__PL={get S(){return S},get bub(){return BUB.info},get sent(){return BUB.sent||0}};})();</script></body>');
         rsp.writeHead(200, { 'content-type': f.endsWith('.html') ? 'text/html' : 'application/octet-stream' }); rsp.end(b); });
     }).listen(0, () => res(s));
   });
@@ -50,11 +50,17 @@ function serve() {
       requestAnimationFrame(loop); };
     requestAnimationFrame(loop);
     // ce que reçoit la bulle Android, à chaque changement
-    setInterval(() => { const S = window.__PL.S; if (!S.gauge) return; const i = window.__PL.bubbleInfo({ lvl: 'prep', liftAt: 100, dn: 200, e: {} });
-      const k = i.progress + '|' + i.rate; if (__bub.length === 0 || __bub[__bub.length - 1].k !== k) __bub.push({ t: performance.now(), k, p: i.progress, r: i.rate }); }, 50);
+    // et on rejoue le compte à rebours de la bulle Android (mètres qui défilent à la vitesse reçue, jamais de remontée)
+    window.__cd = { base: -1, t0: 0, key: '', shown: [] };
+    setInterval(() => { const i = window.__PL.bub, now = performance.now(), C = __cd; if (i.meters == null) return;
+      const k = JSON.stringify(i); if (__bub.length === 0 || __bub[__bub.length - 1].k !== k) {
+        __bub.push({ t: now, k, p: i.progress, r: i.rate, m: i.meters });
+        const cur = C.base < 0 ? -1 : Math.max(0, C.base - i.mps * (now - C.t0) / 1000), fresh = cur < 0 || i.key !== C.key || i.meters > cur + 60 || i.meters < cur - 80;
+        C.base = fresh ? i.meters : Math.min(cur, i.meters); C.t0 = now; C.key = i.key; }
+      C.shown.push([now, Math.max(0, C.base - i.mps * (now - C.t0) / 1000), i.line1]); }, 50);
   });
   await page.waitForTimeout(26000);
-  const rec = await page.evaluate(() => __rec), bub = await page.evaluate(() => __bub);
+  const rec = await page.evaluate(() => __rec), bub = await page.evaluate(() => __bub), sent = await page.evaluate(() => window.__PL.sent), cd = await page.evaluate(() => __cd.shown);
   await browser.close(); srv.close();
 
   let n = 0, back = 0; const steps = [];
@@ -64,7 +70,9 @@ function serve() {
   console.log(`Bandeau : jauge affichée ${n} images, ${back} retour(s) en arrière, avance médiane ${med.toFixed(3)} %/image, 95 % des images sous ${p95.toFixed(3)}, plus grand bond ${max.toFixed(3)}`);
   const rates = bub.filter(x => x.r > 0).map(x => x.r), rMin = Math.min(...rates), rMax = Math.max(...rates);
   console.log(`Bulle : ${bub.length} mises à jour envoyées, vitesse de remplissage de ${(rMin * 100).toFixed(1)} à ${(rMax * 100).toFixed(1)} %/s`);
-  const ok = n > 200 && back === 0 && max < Math.max(0.25, med * 3) && bub.length >= 3 && bub.length < 40 && rMax < rMin * 1.6;
+  let up = 0, big = 0; for (let i = 1; i < cd.length; i++) { const d = cd[i][1] - cd[i - 1][1]; if (d > 0.5) up++; if (-d > 6) big++; }
+  console.log(`Bulle : ${cd.length} relevés du compte à rebours, de ${Math.round(cd[0] ? cd[0][1] : 0)} m à ${Math.round(cd.length ? cd[cd.length - 1][1] : 0)} m, ${up} remontée(s), ${big} saut(s) de plus de 6 m en 50 ms ; ${sent} envois vers Android`);
+  const ok = n > 200 && back === 0 && max < Math.max(0.25, med * 3) && rates.length >= 3 && rMax < rMin * 1.6 && cd.length > 100 && up === 0 && big === 0 && sent < 26 * 4;
   console.log(ok ? 'RÉUSSI : la jauge se remplit de façon régulière' : 'ÉCHEC : la jauge avance par à-coups');
   process.exit(ok ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
