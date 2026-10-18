@@ -369,6 +369,7 @@ details.more p{font-size:14px}
 .fst b{display:block;font:700 17px var(--f-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fst small{display:block;font-size:13px;color:var(--muted)}
 .fst .p{font:700 22px var(--f-display);font-variant-numeric:tabular-nums;text-align:right}
+.fst .p.fast{color:var(--go)}
 .fst .p small{font:500 12px var(--f-body)}
 .fst .go{width:40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;display:grid;place-items:center;flex:none}
 .fst .go svg{width:20px;height:20px}
@@ -415,6 +416,7 @@ details.more p{font-size:14px}
       <button class="mrow" id="bSound" type="button" role="switch" aria-checked="true"><span><b>Voix</b></span><i class="sw" aria-hidden="true"></i></button>
       <button class="mrow" id="bZones" type="button" role="switch" aria-checked="true"><span><b>Zones de contrôle</b><small>Radars fixes, annoncés par zone</small></span><i class="sw" aria-hidden="true"></i></button>
       <button class="mrow" id="bNight" type="button"><span><b>Mode nuit</b><small id="mNight">Automatique</small></span></button>
+      <button class="mrow" id="bEnergy" type="button"><span><b>Ma voiture</b><small id="mEnergy">Thermique (essence, diesel)</small></span></button>
       <button class="mrow" id="bVoiceStyle" type="button"><span><b>Style de voix</b><small id="mVoiceStyle">Sobre</small></span></button>
     </div>
     <div class="mgroup">
@@ -545,10 +547,14 @@ const CAP=window.Capacitor, NATIVE=!!(CAP&&((CAP.isNativePlatform&&CAP.isNativeP
 const capReg=(window.capacitorExports&&window.capacitorExports.registerPlugin)||(CAP&&CAP.registerPlugin);
 const PLUG=!NATIVE?{}:capReg?{TextToSpeech:capReg('TextToSpeech'),KeepAwake:capReg('KeepAwake'),BackgroundGeolocation:capReg('BackgroundGeolocation'),Bubble:capReg('Bubble')}:(CAP.Plugins||{});
 /* ===== Modèle véhicule ===== */
-const M=1250,G=9.81,CRR=0.011,RHO=1.2,CDA=0.62,EB=0.32,KMH=3.6,LOOK=1500,ETA=0.27,EF=32e6,BASE=0.00015,IDLE=0.00017,PRICE=1.80;
+const M=1250,G=9.81,CRR=0.011,RHO=1.2,CDA=0.62,KMH=3.6,LOOK=1500,ETA=0.27,EF=32e6,BASE=0.00015,IDLE=0.00017,PRICE=1.80;
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+// Énergie du véhicule : thermique (frein moteur pied levé) ou électrique (récupération d'énergie pied levé, plus forte)
+let ENERGY='thermique'; try{ if(localStorage.getItem('pl-energy')==='electrique') ENERGY='electrique'; }catch(e){}
+const EV=()=>ENERGY==='electrique', EVP=0.30, EVETA=0.85; // prix moyen du kWh (maison et bornes), rendement batterie → roues
+let EB=EV()?0.6:0.32;
 const coastDecel=v=>(CRR*M*G+0.5*RHO*CDA*v*v)/M+(v>4?EB:0);
-const CT=new Float64Array(451); { let D=0; for(let k=1;k<=450;k++){ const v=k*0.1; if(v>0.5) D+=v*0.1/coastDecel(v); CT[k]=D; } }
+const CT=new Float64Array(451); function buildCT(){ let D=0; for(let k=1;k<=450;k++){ const v=k*0.1; if(v>0.5) D+=v*0.1/coastDecel(v); CT[k]=D; } } buildCT();
 const ct=v=>CT[clamp(Math.round(v*10),0,450)];
 const coastDist=(v0,v1)=>Math.max(0,ct(v0)-ct(v1));
 
@@ -740,6 +746,7 @@ async function routeShortest(from,to){
 // moteur au ralenti, et les relances après les arrêts et ralentissements (environ tous les 250 m à 25 km/h de moyenne, tous les 3 km à 90 km/h)
 function routeLitres(r){ const v=Math.max(3,r.distance/Math.max(1,r.duration)), vc=v*1.15;
   const roll=(CRR*M*G+0.5*RHO*CDA*vc*vc)/(ETA*EF), gap=Math.max(200,5*v*v), starts=r.distance/gap*(0.5*M*vc*vc)/(ETA*EF);
+  if(EV()){ const kwh=(r.distance*(CRR*M*G+0.5*RHO*CDA*vc*vc)+r.distance/gap*0.5*M*vc*vc*0.4)/(EVETA*3.6e6); return kwh*EVP/PRICE; } // relances : 60 % récupérés
   return r.distance*roll+r.duration*BASE+starts; }
 async function routeChoices(from,to){
   const [o,v]=await Promise.allSettled([routeOSRM(from,to,true),routeShortest(from,to)]);
@@ -802,10 +809,10 @@ function renderPlan(){
     for(const [mode,r,t] of [['rapide',o.fast,'Le plus rapide'],['court',o.short,'Le plus court']]){
       const bt=document.createElement('button'); bt.type='button'; bt.className='ropt'; bt.setAttribute('aria-pressed',String(PLAN.mode===mode));
       const k=document.createElement('b'); k.textContent=t; const d=document.createElement('span'); d.textContent=`${fmtDur(r.duration)} · ${nf(r.distance/1000,1)} km`;
-      const c=document.createElement('small'); c.textContent=`≈ ${nf(routeLitres(r)*PRICE,2)} € de carburant`;
+      const c=document.createElement('small'); c.textContent=`≈ ${nf(routeLitres(r)*PRICE,2)} € ${EV()?'d’électricité':'de carburant'}`;
       bt.append(k,d,c); bt.onclick=()=>{ ROUTE_MODE=mode; try{ localStorage.setItem('pl-route',mode); }catch(e){} planPick(mode); renderPlan(); };
       box2.append(bt); }
-    const n=document.createElement('small'); n.className='fine'; n.textContent='Sans trafic. Carburant estimé au prix moyen.';
+    const n=document.createElement('small'); n.className='fine'; n.textContent=EV()?`Sans trafic. Électricité estimée à ${nf(EVP,2)} €/kWh.`:'Sans trafic. Carburant estimé au prix moyen.';
     box.append(b,x,box2,n,zoneCountEl(),pleinEl());
   } else {
     const sp=document.createElement('span'); sp.textContent=o?`${line(PLAN)} · le plus rapide est aussi le plus court`:`${nf(PLAN.distance/1000,1)} km · environ ${fmtDur(PLAN.duration)} (sans trafic)`;
@@ -960,6 +967,12 @@ function pointAt(pts,s){
 function ecoStep(v0,v1,dt){
   const E=S.eco, vm=(v0+v1)/2, a=(v1-v0)/dt; E.a=E.a*0.5+a*0.5;
   const Fres=CRR*M*G+0.5*RHO*CDA*vm*vm, ds=vm*dt, ag=E.a+G*(S.grade||0); E.dist+=ds; // ag : accélération ramenée à une route plate
+  if(EV()){ // électrique : pas de ralenti ; pied levé = l'élan est gardé (et récupéré) au lieu d'être pris à la batterie
+    const k=1/(EVETA*3.6e6); E.kwh=E.kwh||0; E.kwhUsed=E.kwhUsed||0;
+    if(vm>=1.5&&ag>-0.12) E.kwhUsed+=(M*Math.max(0,E.a)+Math.max(0,Fres+M*G*(S.grade||0)))*vm*k*dt;
+    else if(vm>4&&ag>-(coastDecel(vm)+0.6)){ E.kwh+=Fres*vm*k*dt; E.coast+=ds; }
+    E.saved=E.kwh*EVP/PRICE; E.fuel=E.kwhUsed*EVP/PRICE;
+    $('hEco').textContent=`${nf(E.kwh,2)} kWh`; kittySet(E.saved*PRICE); return; }
   if(vm<1.5){ E.fuel+=IDLE*dt; return; }
   if(ag>-0.12){ E.fuel+=(BASE+(M*Math.max(0,E.a)+Math.max(0,Fres+M*G*(S.grade||0)))*vm/(ETA*EF))*dt; }
   else if(ag>-(coastDecel(vm)+0.6)){ if(vm<=4) E.fuel+=IDLE*dt; else { E.saved+=(BASE+Fres*vm/(ETA*EF))*dt; E.coast+=ds; } }
@@ -1448,6 +1461,7 @@ async function fuelOsm(lat,lon){ const q=`[out:json][timeout:15];nwr(around:1000
   return (js.elements||[]).map(e=>({lat:e.lat??(e.center&&e.center.lat),lon:e.lon??(e.center&&e.center.lon),name:(e.tags&&(e.tags.brand||e.tags.name))||'',addr:'',prices:{}})).filter(x=>x.lat!=null); }
 async function fuelOpen(){
   $('ovFuel').hidden=false; fuelKinds();
+  if(EV()) return chargeOpen();
   if(PLAN&&PM.state==='ok'&&PM.list.length){ FST.route=true; fuelRender(); return; } FST.route=false; $('fuelList').innerHTML='<p class="fine">Recherche des stations…</p>'; $('fuelNote').textContent='';
   let lat,lon; try{ if(S.running&&S.xy){ [lat,lon]=toLL(S.xy[0],S.xy[1]); } else { const p=await getPos(); lat=p.lat; lon=p.lon; } }catch(e){ $('fuelList').innerHTML='<p class="fine">Position indisponible.</p>'; return; }
   FST.pos={lat,lon};
@@ -1505,7 +1519,7 @@ function routeProject(C,cum,lat,lon){ const kx=111320*Math.cos(lat*Math.PI/180),
     const t=clamp(-(ax*sx+ay*sy)/L2,0,1), d=Math.hypot(ax+t*sx,ay+t*sy); if(d<best.d) best={d,s:cum[i-1]+t*Math.sqrt(L2)}; }
   return best; }
 async function pleinRoute(P){
-  if(!P||!P.coords||P.coords.length<2){ PM.key=''; PM.list=[]; PM.state=''; pleinShow(); return; }
+  if(EV()||!P||!P.coords||P.coords.length<2){ PM.key=''; PM.list=[]; PM.state=''; pleinShow(); return; }
   const C=P.coords, key=`${C.length}|${C[0]}|${C[C.length-1]}|${Math.round(P.distance||0)}`;
   if(PM.key===key&&PM.state!=='err') { pleinShow(); return; }
   Object.assign(PM,{key,state:'load',list:[],said:false}); pleinShow();
@@ -1550,7 +1564,48 @@ function pleinDrive(){ const el=$('pleinChip'); if(!el) return; const R=S.route,
   const t=`Plein Malin dans ${fmtD(Math.max(0,d))} · ${nf(b.price,3)} €`; if($('pleinTxt').textContent!==t) $('pleinTxt').textContent=t; el.hidden=false;
   el.onclick=()=>{ location.href=`https://waze.com/ul?ll=${b.lat.toFixed(6)},${b.lon.toFixed(6)}&navigate=yes`; };
   if(!PM.said){ PM.said=true; logLine(`Plein Malin : station conseillée dans ${fmtD(d)}`); say(`Plein Malin. Station la moins chère dans ${Math.max(1,Math.round(d/1000))} kilomètres, ${Math.floor(b.price)} euro${b.price>=2?'s':''} ${String(Math.round((b.price%1)*100)).padStart(2,'0')} le litre.`); } }
+/* ===== Bornes de recharge (véhicule électrique) : OpenStreetMap, sur le trajet ou devant en priorité ===== */
+function chargeKw(t){ let kw=0; for(const k in t){ if(!/^socket:.+:output$/.test(k)&&k!=='maxpower'&&k!=='charging_station:output') continue;
+    for(const part of String(t[k]).split(/[;,]/)){ const m=/([\d.]+)\s*(kw|w)?/i.exec(part); if(!m) continue; let v=+m[1]; if(m[2]&&m[2].toLowerCase()==='w') v/=1000; else if(!m[2]&&v>1000) v/=1000; if(v>kw&&v<1000) kw=v; } }
+  return kw||null; }
+function chargePlugs(t){ const P=[['type2_combo','CCS'],['chademo','CHAdeMO'],['type2','Type 2'],['type2_cable','Type 2'],['tesla_supercharger','Tesla'],['typee','Prise'],['schuko','Prise']], out=[];
+  for(const [k,n] of P){ const v=t['socket:'+k]; if(v&&v!=='no'&&v!=='0'&&!out.includes(n)) out.push(n); } return out; }
+async function chargeOsm(lat,lon){ const q=`[out:json][timeout:15];nwr(around:15000,${lat.toFixed(5)},${lon.toFixed(5)})[amenity=charging_station];out center 150;`;
+  let js=null; for(const ep of EPS){ try{ const r=await fetch(ep+'?data='+encodeURIComponent(q),{signal:tmo(15000)}); if(!r.ok) throw new Error('HTTP '+r.status); js=await r.json(); break; }catch(e){ logLine(`Bornes : ${ep.split('/')[2]} indisponible (${(e&&e.message)||e})`); } }
+  if(!js) throw new Error('réseau');
+  return (js.elements||[]).map(e=>{ const t=e.tags||{}; return {lat:e.lat??(e.center&&e.center.lat),lon:e.lon??(e.center&&e.center.lon),name:t.name||t.operator||t.brand||t.network||'',
+    addr:[t['addr:street'],t['addr:city']].filter(Boolean).join(', '),kw:chargeKw(t),plugs:chargePlugs(t),n:+t.capacity||null,fee:t.fee,prices:{}}; }).filter(x=>x.lat!=null); }
+async function chargeOpen(){
+  $('ovFuel').hidden=false; FST.route=false; $('fuelHead').textContent='Bornes de recharge'; $('fuelKinds').innerHTML=''; $('fuelTank').hidden=true;
+  $('fuelList').innerHTML='<p class="fine">Recherche des bornes…</p>'; $('fuelNote').textContent='';
+  let lat,lon; try{ if(S.running&&S.xy){ [lat,lon]=toLL(S.xy[0],S.xy[1]); } else { const p=await getPos(); lat=p.lat; lon=p.lon; } }catch(e){ $('fuelList').innerHTML='<p class="fine">Position indisponible.</p>'; return; }
+  FST.pos={lat,lon}; FST.kind='ev';
+  try{ FST.list=await chargeOsm(lat,lon); }catch(e){ $('fuelList').innerHTML='<p class="fine">Bornes indisponibles pour le moment (réseau).</p>'; return; }
+  logLine(`Bornes de recharge : ${FST.list.length} trouvées`); chargeRender(); }
+function chargeRender(){ const box=$('fuelList'); box.innerHTML='';
+  const top=fuelRank(); if(!top.length){ box.innerHTML='<p class="fine">Aucune borne trouvée à moins de 15 km.</p>'; return; }
+  top.forEach((st,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='fst';
+    const where=st.on?`sur le trajet, dans ${fmtD(st.along)}`:st.ahead?`devant, à ${fmtD(st.d)}`:`à ${fmtD(st.d)}`;
+    const fast=st.kw&&st.kw>=43;
+    b.innerHTML=`<div class="go">${i+1}</div><div class="n"><b></b><small></small></div><div class="p${fast?' fast':''}">${st.kw?nf(st.kw,0)+' kW':'–'}<small>${st.kw?(fast?'rapide':'normale'):'puissance ?'}</small></div>`;
+    b.querySelector('b').textContent=st.name||st.addr||'Borne de recharge';
+    b.querySelector('.n small').textContent=[st.plugs.join(', '),st.n?`${st.n} point${st.n>1?'s':''}`:'',where].filter(Boolean).join(' · ');
+    b.onclick=()=>{ logLine(`Borne choisie : ${st.name||st.addr}`); location.href=`https://waze.com/ul?ll=${st.lat.toFixed(6)},${st.lon.toFixed(6)}&navigate=yes`; };
+    box.append(b); });
+  $('fuelNote').textContent='Touchez une borne pour y aller avec Waze. Bornes et puissances : OpenStreetMap ; la disponibilité en temps réel n’est pas connue. Ne touchez pas l’écran en roulant.';
+  fuelMarkers(top); }
+// choix de l'énergie (menu) : tout l'affichage suit
+function energyApply(){ EB=EV()?0.6:0.32; buildCT(); S.liftRef={};
+  $('mEnergy').textContent=EV()?'Électrique':'Thermique (essence, diesel)';
+  const fb=$('bFuel'); fb.setAttribute('aria-label',EV()?'Bornes de recharge proches':'Stations-service proches');
+  fb.innerHTML=EV()?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 01-12 0zM12 17v4"/></svg>'
+    :'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 012-2h7a2 2 0 012 2v16M3 21h13M7 7h5v4H7z"/><path d="M15 9h2a2 2 0 012 2v6a1.5 1.5 0 003 0V9l-3-3"/></svg>';
+  $('bFuelMenu').querySelector('b').textContent=EV()?'Bornes de recharge proches':'Stations-service proches';
+  $('bFuelMenu').querySelector('small').textContent=EV()?'Puissance et prises':'Avec les prix du jour';
+  if(PLAN){ PM.key=''; renderPlan(); } }
 function fuelClose(){ $('ovFuel').hidden=true; FST.mk.forEach(m=>m.remove()); FST.mk=[]; }
+$('bEnergy').onclick=()=>{ ENERGY=EV()?'thermique':'electrique'; try{ localStorage.setItem('pl-energy',ENERGY); }catch(e){} energyApply(); logLine(`Énergie : ${ENERGY}`); };
+energyApply();
 $('bFuel').onclick=fuelOpen; $('bFuelClose').onclick=fuelClose; $('bFuelMenu').onclick=()=>{ $('ovMenu').hidden=true; fuelOpen(); };
 function setVoice(on){ voiceOn=on; $('bSound').setAttribute('aria-checked',String(on));
   const m=$('bMute'); m.setAttribute('aria-pressed',String(!on)); m.setAttribute('aria-label',on?'Couper le son':'Remettre le son');
@@ -1984,12 +2039,12 @@ function end(){
   $('eCues').textContent=L.cues; $('eFol').textContent=L.cues?`${Math.round(L.fol/L.cues*100)} %`:'–';
   $('eHard').textContent=L.hard; $('ePass').textContent=L.passes.length;
   const E=S.eco, l100=E.dist>500?E.fuel/E.dist*100000:null, pct=E.fuel+E.saved>0?E.saved/(E.fuel+E.saved)*100:0;
-  $('eFuel').textContent=`${nf(E.fuel,2)} L`; $('eSaved').textContent=`${nf(E.saved,2)} L`;
+  $('eFuel').textContent=EV()?`${nf(E.kwhUsed||0,2)} kWh`:`${nf(E.fuel,2)} L`; $('eSaved').textContent=EV()?`${nf(E.kwh||0,2)} kWh`:`${nf(E.saved,2)} L`;
   $('eSub').textContent=`Trajet terminé · ${nf(L.dist/1000,1)} km · ${fmtDur(dur)}${S.mode==='sim'?' · simulation':''}`;
   $('eFolN').textContent=L.cues?`${L.fol} sur ${L.cues}`:'–'; $('eFolBar').style.width=L.cues?`${Math.round(L.fol/L.cues*100)}%`:'0';
   $('eMsg').textContent=!L.cues?'Aucun conseil sur ce trajet.':L.hard===0?'Aucun freinage fort, bravo.':L.hard===1?'Un seul freinage fort.':`${L.hard} freinages forts : levez le pied un peu plus tôt.`;
   funEnd(L,E,dur);
-  $('eEcoTxt').textContent=`Estimation par le modèle d’une citadine thermique, à partir de votre vitesse GPS : ${l100!=null?`environ ${nf(l100,1)} L/100 km, `:''}${nf(E.saved,2)} L économisés en roulant pied levé sur ${nf(E.coast/1000,1)} km (≈ ${nf(pct,0)} % du carburant, ${nf(E.saved*PRICE,2)} € à ${nf(PRICE,2)} €/L). Ce n’est pas une mesure réelle.`;
+  $('eEcoTxt').textContent=EV()?`Estimation par le modèle d’une citadine électrique, à partir de votre vitesse GPS : ${nf(E.kwh||0,2)} kWh gardés en roulant pied levé sur ${nf(E.coast/1000,1)} km (${nf((E.kwh||0)*EVP,2)} € à ${nf(EVP,2)} €/kWh). Ce n’est pas une mesure réelle.`:`Estimation par le modèle d’une citadine thermique, à partir de votre vitesse GPS : ${l100!=null?`environ ${nf(l100,1)} L/100 km, `:''}${nf(E.saved,2)} L économisés en roulant pied levé sur ${nf(E.coast/1000,1)} km (≈ ${nf(pct,0)} % du carburant, ${nf(E.saved*PRICE,2)} € à ${nf(PRICE,2)} €/L). Ce n’est pas une mesure réelle.`;
   const over=L.passes.filter(p=>p.vt>0&&p.v>p.vt+5).length;
   const txt=[`Pied Levé, journal du ${new Date().toLocaleString('fr-FR')}`,`Mode : ${S.mode==='sim'?'simulation':'route réelle'}`,
     `Distance ${nf(L.dist/1000,2)} km · durée ${Math.round(dur)} s`,`Conseils lever le pied : ${L.cues} · suivis : ${L.fol} · freinages forts : ${L.hard}`,
@@ -2046,7 +2101,7 @@ function voiceTxt(k,a){ a=a||{}; const st=voiceStyle;
     stop:{sobre:'Stop.',coach:'Stop, on marque bien l’arrêt !',humour:'Stop. Même les escargots s’arrêtent.'},
     arrive:{sobre:'Vous êtes arrivé.',coach:'Arrivé ! Beau trajet.',humour:'Vous êtes arrivé. Votre moteur vous dit merci.'},
     bravo:{sobre:'Bien joué.',coach:'Excellent, continue comme ça !',humour:'Bravo, pied de velours !'}};
-  return (T[k]&&T[k][st])||(T[k]&&T[k].sobre)||''; }
+  const t=(T[k]&&T[k][st])||(T[k]&&T[k].sobre)||''; return EV()&&k==='lift'?t+' La batterie récupère.':t; }
 $('bVoiceStyle').onclick=()=>{ const ks=Object.keys(VOICES); voiceStyle=ks[(ks.indexOf(voiceStyle)+1)%ks.length];
   try{ localStorage.setItem('pl-voice-style',voiceStyle); }catch(e){} $('mVoiceStyle').textContent=VOICES[voiceStyle];
   if(voiceOn){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} if(NATIVE&&PLUG.TextToSpeech) speakNative(voiceTxt('bravo')); else { try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(voiceTxt('bravo')); u.lang='fr-FR'; speechSynthesis.speak(u); }catch(e){} } } };
@@ -2065,7 +2120,7 @@ function funEnd(L,E,dur){
   $('eStars').innerHTML=[1,2,3].map(k=>ICO_STAR.replace('<svg','<svg class="'+(k<=stars?'':'off')+'"')).join('');
   $('eNote').innerHTML=score==null?'–':`${score}<small>/100</small>`;
   $('ePhrase').textContent=score==null?'Trajet trop court pour être noté':pick(PHRASES[stars]);
-  $('eSaved').textContent=fe(eur(E.saved)); $('eLit').textContent=E.saved<0.005?'soit moins de 0,01 L de carburant':`soit ${nf(E.saved,2)} L de carburant`;
+  $('eSaved').textContent=fe(eur(E.saved)); $('eLit').textContent=EV()?((E.kwh||0)<0.005?'soit moins de 0,01 kWh':`soit ${nf(E.kwh,2)} kWh de batterie`):E.saved<0.005?'soit moins de 0,01 L de carburant':`soit ${nf(E.saved,2)} L de carburant`;
   // statistiques (copie pour une simulation : on montre ce qui se passerait, sans rien garder)
   const s2=sim?JSON.parse(JSON.stringify(st)):st, now=new Date(), today=dayStr(now);
   s2.trips++; s2.fol+=L.fol; s2.saved+=E.saved; s2.months[monthStr(now)]=(s2.months[monthStr(now)]||0)+E.saved;
