@@ -41,12 +41,12 @@ async function run(browser, port, off) {
 }
 
 // aperçu d'un itinéraire : la zone est comptée et dessinée sur la carte (avec MAPLIBRE_DIR), sans repère sur le radar
-async function preview(browser, port) {
+async function preview(browser, port, opt = {}) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } }), ML = process.env.MAPLIBRE_DIR;
   await page.route('**/*', r => { const u = r.request().url();
     if (u.startsWith(`http://localhost:${port}`)) return r.continue();
     const json = o => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: typeof o === 'string' ? o : JSON.stringify(o) });
-    if (u.includes('/interpreter')) return json(overpass);
+    if (u.includes('/interpreter')) { if (opt.fail) return r.fulfill({ status: 504, body: '' }); if (opt.far) return json({ elements: [{ type: 'node', id: 778, lat: LAT0 + 2000 * mLat, lon: LON0 + 35 * mLon, tags: { highway: 'speed_camera' } }, { type: 'node', id: 779, lat: LAT0 + 1000 * mLat, lon: LON0 + 400 * mLon, tags: { highway: 'speed_camera' } }] }); return json(overpass); }
     if (ML && u.includes('unpkg.com/maplibre-gl')) return r.fulfill({ status: 200, path: path.join(ML, path.basename(u)) });
     if (ML && u.includes('openfreemap.org/styles')) return json({ version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#eee' } }] });
     if (u.includes('photon.komoot.io')) return json({ features: [{ geometry: { coordinates: [LON0, LAT0 + 2900 * mLat] }, properties: { name: 'Nord', city: 'Nantes' } }] });
@@ -62,7 +62,7 @@ async function preview(browser, port) {
 
 (async () => {
   const srv = await serve(), port = srv.address().port, browser = await chromium.launch();
-  const pv = await preview(browser, port);
+  const pv = await preview(browser, port), pf = await preview(browser, port, { fail: true }), pd = await preview(browser, port, { far: true });
   let failed = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'ÉCHEC ') + msg); if (!ok) failed++; };
   const a = await run(browser, port, false), b = await run(browser, port, true);
   await browser.close(); srv.close();
@@ -75,6 +75,8 @@ async function preview(browser, port) {
   check(a.spoken.some(t => /Zone de contrôle\. Limitation à 80/.test(t)), 'annonce vocale à l’entrée de zone');
   check(b.chip.length === 0 && !b.spoken.some(t => /Zone de contrôle/.test(t)), 'réglage coupé : rien n’est annoncé');
   check(/^1 zone de contrôle sur le trajet/.test(pv.count || ''), `aperçu du trajet : « ${pv.count} »`);
+  check(/^1 zone de contrôle/.test(pd.count || ''), `radar posé à 35 m (autre chaussée) compté, radar d'une route voisine à 400 m ignoré (« ${pd.count} »)`);
+  check(/indisponibles pour le moment/.test(pf.count || ''), `service des radars en panne : on le dit (« ${pf.count} »)`);
   if (pv.line !== undefined) { const L = pv.line && pv.line[0], lat = L ? L.map(c => (c[1] - LAT0) / mLat) : [];
     check(L && lat[0] > 1000 && lat[0] < 1700 && Math.round(lat[lat.length - 1]) === 3000, `zone dessinée sur la carte : de ${Math.round(lat[0])} m à la fin du trajet (3 000 m), radar à 2 000 m`); }
   console.log(failed ? `${failed} vérification(s) en échec` : 'RÉUSSI : zones de contrôle annoncées, sans position exacte des radars');
