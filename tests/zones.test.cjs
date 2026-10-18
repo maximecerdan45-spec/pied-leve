@@ -42,11 +42,11 @@ async function run(browser, port, off) {
 
 // aperçu d'un itinéraire : la zone est comptée et dessinée sur la carte (avec MAPLIBRE_DIR), sans repère sur le radar
 async function preview(browser, port, opt = {}) {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 } }), ML = process.env.MAPLIBRE_DIR;
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } }), ML = process.env.MAPLIBRE_DIR; const qs = [];
   await page.route('**/*', r => { const u = r.request().url();
     if (u.startsWith(`http://localhost:${port}`)) return r.continue();
     const json = o => r.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: typeof o === 'string' ? o : JSON.stringify(o) });
-    if (u.includes('/interpreter')) { if (opt.fail) return r.fulfill({ status: 504, body: '' }); if (opt.far) return json({ elements: [{ type: 'node', id: 778, lat: LAT0 + 2000 * mLat, lon: LON0 + 35 * mLon, tags: { highway: 'speed_camera' } }, { type: 'node', id: 779, lat: LAT0 + 1000 * mLat, lon: LON0 + 400 * mLon, tags: { highway: 'speed_camera' } }] }); return json(overpass); }
+    if (u.includes('/interpreter')) { const pd = decodeURIComponent((r.request().postData() || '').replace(/^data=/, '')); if (/speed_camera/.test(pd)) qs.push(pd); if (opt.fail) return r.fulfill({ status: 504, body: '' }); if (opt.far) return json({ elements: [{ type: 'node', id: 778, lat: LAT0 + 2000 * mLat, lon: LON0 + 35 * mLon, tags: { highway: 'speed_camera' } }, { type: 'node', id: 779, lat: LAT0 + 1000 * mLat, lon: LON0 + 400 * mLon, tags: { highway: 'speed_camera' } }] }); return json(overpass); }
     if (ML && u.includes('unpkg.com/maplibre-gl')) return r.fulfill({ status: 200, path: path.join(ML, path.basename(u)) });
     if (ML && u.includes('openfreemap.org/styles')) return json({ version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#eee' } }] });
     if (u.includes('photon.komoot.io')) return json({ features: [{ geometry: { coordinates: [LON0, LAT0 + 2900 * mLat] }, properties: { name: 'Nord', city: 'Nantes' } }] });
@@ -55,7 +55,7 @@ async function preview(browser, port, opt = {}) {
   await page.addInitScript(({ LAT0, LON0 }) => { navigator.geolocation.getCurrentPosition = ok => setTimeout(() => ok({ coords: { latitude: LAT0, longitude: LON0, accuracy: 5 } }), 5); navigator.geolocation.watchPosition = () => 1; }, { LAT0, LON0 });
   await page.goto(`http://localhost:${port}/`); await page.waitForTimeout(ML ? 2000 : 800);
   await page.fill('#qDest', 'Nord Nantes'); await page.waitForSelector('#destRes button'); await page.click('#destRes button'); await page.waitForTimeout(1500);
-  const out = { count: await page.textContent('#zoneCount').catch(() => null) };
+  const out = { count: await page.textContent('#zoneCount').catch(() => null), q: qs[0] || '' };
   if (ML) out.line = await page.evaluate(() => { const m = document.querySelector('.maplibregl-map') && window.__PL.MAP; if (!m) return null; const f = m.getSource('rzones')._data.features; return f.map(x => x.geometry.coordinates); });
   await page.close(); return out;
 }
@@ -75,6 +75,7 @@ async function preview(browser, port, opt = {}) {
   check(a.spoken.some(t => /Zone de contrôle\. Limitation à 80/.test(t)), 'annonce vocale à l’entrée de zone');
   check(b.chip.length === 0 && !b.spoken.some(t => /Zone de contrôle/.test(t)), 'réglage coupé : rien n’est annoncé');
   check(/^1 zone de contrôle sur le trajet/.test(pv.count || ''), `aperçu du trajet : « ${pv.count} »`);
+  check(/node\(around:120,[-\d.,]+\)\[highway=speed_camera\]/.test(pv.q) && !/\(\d+\.\d+,-?\d+\.\d+,\d+\.\d+,-?\d+\.\d+\);out/.test(pv.q), `recherche dans une bande autour du trajet, pas dans tout le rectangle (${pv.q.length} caractères)`);
   check(/^1 zone de contrôle/.test(pd.count || ''), `radar posé à 35 m (autre chaussée) compté, radar d'une route voisine à 400 m ignoré (« ${pd.count} »)`);
   check(/indisponibles pour le moment/.test(pf.count || ''), `service des radars en panne : on le dit (« ${pf.count} »)`);
   if (pv.line !== undefined) { const L = pv.line && pv.line[0], lat = L ? L.map(c => (c[1] - LAT0) / mLat) : [];
