@@ -54,6 +54,20 @@ public class BubblePlugin extends Plugin {
     private android.graphics.drawable.ClipDrawable fill;
     private float progress = -1f, rate = 0f, fillRate = 0f;
     private android.animation.ValueAnimator fillAnim;
+    // Compte à rebours « levez dans … m » : l'appli envoie la distance et la vitesse, la bulle fait défiler
+    // les mètres et la jauge d'elle-même (image par image), sans jamais remonter
+    private float meters = -1f, mps = 0f, cdBase = -1f;
+    private long cdT0 = 0;
+    private String cdKey = "", cdShownKey = "", cdText = "";
+    private static final float GAUGE_D = 350f;
+    private final Runnable cdTick = new Runnable() {
+        @Override
+        public void run() {
+            if (cdBase < 0 || bubble == null || !shown) return;
+            countdownDraw();
+            main.postDelayed(this, 50);
+        }
+    };
     private BubbleIcon icon;
     private int curColor = 0;
     private String lastL2 = null;
@@ -310,6 +324,53 @@ public class BubblePlugin extends Plugin {
         progress = p == null ? -1f : p.floatValue();
         Double rt = call.getDouble("rate");
         rate = rt == null ? 0f : rt.floatValue();
+        Double mm = call.getDouble("meters");
+        meters = mm == null ? -1f : mm.floatValue();
+        Double sp = call.getDouble("mps");
+        mps = sp == null ? 0f : sp.floatValue();
+        cdKey = call.getString("key", "");
+    }
+
+    private float countdownNow() {
+        if (cdBase < 0) return -1f;
+        return Math.max(0f, cdBase - mps * (System.currentTimeMillis() - cdT0) / 1000f);
+    }
+
+    private static String fmtMeters(float m) {
+        if (m < 1000f) return Math.max(10, Math.round(m / 10f) * 10) + " m";
+        return String.format(java.util.Locale.FRANCE, "%.1f km", m / 1000f);
+    }
+
+    private void countdownDraw() {
+        float m = countdownNow();
+        if (m < 0) return;
+        fill.setLevel(Math.round(Math.max(0f, Math.min(1f, 1f - m / GAUGE_D)) * 10000));
+        String t = fmtMeters(m);
+        if (!t.equals(cdText)) {
+            cdText = t;
+            line2.setText(t);
+        }
+    }
+
+    /** Nouvelle distance reçue : on repart de la plus petite des deux (jamais de retour en arrière), sauf nouvel obstacle. */
+    private void countdownSet() {
+        float cur = countdownNow();
+        boolean fresh = cur < 0 || !cdKey.equals(cdShownKey) || meters > cur + 60f || meters < cur - 80f;
+        cdBase = fresh ? meters : Math.min(cur, meters);
+        cdT0 = System.currentTimeMillis();
+        cdShownKey = cdKey;
+        if (fillAnim != null) fillAnim.cancel();
+        fillAnim = null;
+        main.removeCallbacks(cdTick);
+        countdownDraw();
+        main.postDelayed(cdTick, 50);
+    }
+
+    private void countdownStop() {
+        if (cdBase < 0) return;
+        cdBase = -1f;
+        cdText = "";
+        main.removeCallbacks(cdTick);
     }
 
     /** Début / fin de trajet : la bulle s'affichera d'elle-même quand l'appli passe derrière. */
@@ -415,6 +476,7 @@ public class BubblePlugin extends Plugin {
     }
 
     private void remove() {
+        countdownStop();
         if (shown && bubble != null) {
             try {
                 wm.removeView(bubble);
@@ -454,10 +516,15 @@ public class BubblePlugin extends Plugin {
                     .withEndAction(() -> card.animate().scaleX(1f).scaleY(1f).setDuration(140).start()).start();
         }
         lastL2 = l2;
-        updateFill();
         line1.setText(l1);
-        line2.setText(l2);
         line2.setVisibility(l2 == null || l2.isEmpty() ? View.GONE : View.VISIBLE);
+        if (meters >= 0) {
+            countdownSet();
+        } else {
+            countdownStop();
+            updateFill();
+            line2.setText(l2);
+        }
     }
 
     /**
